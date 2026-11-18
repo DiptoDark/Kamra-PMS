@@ -5,6 +5,20 @@ import { NewBookingDrawer } from "./NewBookingDrawer"
 import { datesGuestsStep } from "./steps/DatesGuestsStep"
 import type { BookingStep } from "./types"
 
+// The full flow's steps load options, free rooms, guests and the price:
+// answer them all here so this file never reaches the network.
+vi.mock("../../lib/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/api")>()),
+  getCurrentProperty: () => "Test Hotel",
+  getBookingOptions: vi.fn(async () => ({ room_types: [], property: { country: null } })),
+  call: vi.fn(async () => []),
+  guestSearch: vi.fn(async () => []),
+  guestAlert: vi.fn(async () => ({ guest: null, blacklisted: 0, blacklist_reason: null })),
+  getQuote: vi.fn(async () => {
+    throw new Error("no quote in these tests")
+  }),
+}))
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] })
   vi.setSystemTime(new Date(2026, 10, 18, 10, 0))
