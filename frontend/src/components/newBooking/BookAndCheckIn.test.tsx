@@ -189,6 +189,25 @@ describe("Book and check in now", () => {
     expect(onClose).toHaveBeenCalled()
   })
 
+  it("shows a credit warning from walk_in, then goes on to the check-in (B7)", async () => {
+    const user = userEvent.setup()
+    server["kamra.api.walk_in"] = () => ({
+      reservation: "RES-0011",
+      room: "R-204",
+      checked_in: 0,
+      paid: 11200,
+      credit_warning: { company: "Acme Ltd", reasons: ["Over the credit limit."], overridden: false },
+    })
+    open()
+
+    await waitFor(() => expect(checkInNow()).toBeEnabled())
+    await user.click(checkInNow())
+
+    expect(await screen.findByText("Booked RES-0011. Acme Ltd: company credit warning")).toBeInTheDocument()
+    await user.click(screen.getByRole("button", { name: "Continue to check-in" }))
+    expect(await screen.findByRole("heading", { name: "Check in" })).toBeInTheDocument()
+  })
+
   it("needs a room number: the button says so until one is picked", async () => {
     open({ stays: 2 })
 

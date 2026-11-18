@@ -293,6 +293,28 @@ describe("Company pays", () => {
     expect(await step().findByText("Acme Ltd: company credit warning")).toBeInTheDocument()
     await waitFor(() => expect(book()).toBeEnabled())
   })
+
+  it("after booking, shows the credit warning Kamra returned before closing (B7)", async () => {
+    const user = userEvent.setup()
+    server["kamra.api.create_booking"] = () => ({
+      reservation: "RES-0001",
+      room: "R-101",
+      credit_warning: { company: "Acme Ltd", reasons: ["An invoice is 40 days overdue."], overridden: false },
+    })
+    const { onBooked, onClose } = open({ date: "2026-11-25", stays: 2 })
+
+    await pickCompany(user, "Acme Ltd")
+    await waitFor(() => expect(book()).toBeEnabled())
+    await user.click(book())
+
+    await waitFor(() => expect(onBooked).toHaveBeenCalled())
+    expect(onClose).not.toHaveBeenCalled()
+    const alert = screen.getByRole("alert")
+    expect(alert).toHaveTextContent("Booked RES-0001. Acme Ltd: company credit warning")
+    expect(alert).toHaveTextContent("An invoice is 40 days overdue.")
+    await user.click(screen.getByRole("button", { name: "Done" }))
+    expect(onClose).toHaveBeenCalled()
+  })
 })
 
 describe("Book (one room)", () => {

@@ -62,9 +62,8 @@ export function NewBookingFooter(
     try {
       const result = await path.run(draft, { keys, overrides: sent, ensureUnlocked })
       props.onBooked?.(result)
-      if (result.payment_error || result.payment_withheld || result.skipped?.length) setDone(result)
-      else if (result.check_in && props.onCheckIn) props.onCheckIn(result.reservation)
-      else props.onClose()
+      if (needsSaying(result)) setDone(result)
+      else finish(result)
     } catch (e) {
       const refusal = refusalOf(e)
       setReason("")
@@ -72,6 +71,12 @@ export function NewBookingFooter(
     } finally {
       setBusy(null)
     }
+  }
+
+  /** After the booking: Kamra's check-in for a walk-in, else close. */
+  function finish(result: BookingDone) {
+    if (result.check_in && props.onCheckIn) props.onCheckIn(result.reservation)
+    else props.onClose()
   }
 
   /** Retry the refused path with the reason, on the same idempotency keys. */
@@ -98,6 +103,7 @@ export function NewBookingFooter(
               <p>{t("Take the payment from the booking.")}</p>
             </>
           )}
+          {done.credit_warning && <CreditWarningNote done={done} />}
           {done.payment_withheld === "rooms_skipped" && (
             <>
               <p>{t("Not every room was booked, so no payment was taken.")}</p>
@@ -106,8 +112,8 @@ export function NewBookingFooter(
           )}
         </div>
         <div className="flex justify-end">
-          <Button className={FOOTER_BUTTON_SIZE} onClick={props.onClose}>
-            {t("Done")}
+          <Button className={FOOTER_BUTTON_SIZE} onClick={() => finish(done)}>
+            {done.check_in && props.onCheckIn ? t("Continue to check-in") : t("Done")}
           </Button>
         </div>
       </div>
@@ -174,6 +180,34 @@ export function NewBookingFooter(
           </Button>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** The booking was made, but something about it is for the desk to read
+ *  before the drawer goes: a payment not taken, rooms Kamra skipped, or the
+ *  company credit warning Kamra books past under its default "warn" policy. */
+const needsSaying = (done: BookingDone) =>
+  Boolean(done.payment_error || done.payment_withheld || done.skipped?.length || done.credit_warning)
+
+/** Kamra booked past the company's credit (policy "warn", or a block
+ *  overridden with a reason) and said why. */
+function CreditWarningNote({ done }: { done: BookingDone }) {
+  const { t } = useT()
+  const w = done.credit_warning!
+  return (
+    <div className="mb-1">
+      <p className="font-semibold">
+        {t("Booked {reservation}. {company}: company credit warning", {
+          reservation: done.reservation,
+          company: w.company,
+        })}
+      </p>
+      <ul className="list-disc ps-5">
+        {w.reasons.map((r) => (
+          <li key={r}>{t(r)}</li>
+        ))}
+      </ul>
     </div>
   )
 }
