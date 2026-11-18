@@ -13,14 +13,16 @@
     calling run again with the reason in ctx.overrides; ctx.keys keeps the
     same idempotency keys across that retry. */
 
-import { getCurrentProperty, newIdempotencyKey, serverError } from "../../lib/api"
+import { getCurrentProperty, newIdempotencyKey } from "../../lib/api"
 import { takeAdvance } from "./advance"
 import { createBooking, walkIn, type CreditWarning } from "./api"
+import { type Refusal } from "./refusals"
 import { amountNow, checksInToday, isGroup, payingCompany, sourceFor } from "./rules"
 import { bookGroup } from "./submitGroup"
 import type { NewBookingDraft } from "./types"
 
-export type { CreditWarning }
+export type { CreditWarning, Refusal }
+export { refusalOf } from "./refusals"
 
 /** Reasons Kamra accepts to book past a refusal (decision D6, #10). */
 export interface Overrides {
@@ -183,53 +185,3 @@ export const bookAndCheckIn: SubmitPath = {
 
 /** The drawer's buttons, in order. */
 export const SUBMIT_PATHS: SubmitPath[] = [bookOneRoom, bookAndCheckIn, bookGroup]
-
-/** Why Kamra refused, read from the error `call` threw. `kind` sorts the
- *  refusals the desk can act on (D6 reasons, D7 till / PIN). */
-export interface Refusal {
-  message: string
-  title: string | null
-  exc_type: string | null
-  kind: "blacklist" | "credit" | "capacity" | "till" | "pin" | "other"
-  /** Kamra would book past it with a reason: blacklist, credit, and over
-   *  capacity while the room type has extra beds left */
-  overridable: boolean
-}
-
-export function refusalOf(e: unknown): Refusal {
-  const message = e instanceof Error && e.message ? e.message : serverError(e)
-  let title: string | null = null
-  let exc_type: string | null = null
-  let raw = ""
-  const body = (e as { body?: string } | null)?.body
-  if (body) {
-    try {
-      const parsed = JSON.parse(body) as { exc_type?: string; _server_messages?: string }
-      exc_type = parsed.exc_type ?? null
-      const first = JSON.parse(parsed._server_messages ?? "[]")[0]
-      if (first) {
-        const m = JSON.parse(first) as { message?: string; title?: string }
-        title = m.title ?? null
-        raw = m.message ?? ""
-      }
-    } catch {
-      /* not a Frappe error body */
-    }
-  }
-  const text = raw || message
-  const kind: Refusal["kind"] =
-    title === "Blacklisted guest" || /blacklisted guest/i.test(text)
-      ? "blacklist"
-      : exc_type === "CreditBlocked" || text.includes("CREDIT_BLOCKED")
-        ? "credit"
-        : title === "Over room capacity"
-          ? "capacity"
-          : text.includes("NO_OPEN_SESSION")
-            ? "till"
-            : /^PIN_|cashier PIN/.test(text)
-              ? "pin"
-              : "other"
-  const overridable =
-    kind === "blacklist" || kind === "credit" || (kind === "capacity" && !/can't sleep|Reduce the party/.test(text))
-  return { message, title, exc_type, kind, overridable }
-}

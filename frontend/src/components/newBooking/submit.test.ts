@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { isReasonRefusal } from "./refusalReasons"
 import { bookAndCheckIn, bookOneRoom, newSubmitKeys, refusalOf } from "./submit"
 import type { NewBookingDraft } from "./types"
 
@@ -203,5 +204,42 @@ describe("refusalOf", () => {
       title: null,
       exc_type: null,
     })
+  })
+
+  it("reads Kamra's machine signals first, so a translated session still sorts them", () => {
+    // the title and message come through _(); exc_type and the prefixes don't
+    expect(refusalOf(frappeError("CREDIT_BLOCKED: Acme: เกินวงเงิน", "เครดิตบริษัท", "CreditBlocked")).kind).toBe("credit")
+    // a credit block whose reasons happen to name a blacklisted guest is still a credit block
+    expect(
+      refusalOf(frappeError("CREDIT_BLOCKED: Acme: billed to a blacklisted guest.", "Company credit", "CreditBlocked")),
+    ).toMatchObject({ kind: "credit", overridable: true })
+    expect(refusalOf(frappeError("PIN_LOCKED: too many wrong attempts.", "ข้อผิดพลาด")).kind).toBe("pin")
+    expect(refusalOf(frappeError("NO_OPEN_SESSION: open your till.", "ข้อผิดพลาด")).kind).toBe("till")
+  })
+
+  it("sorts a refusal the same way with or without Frappe's title (one classifier)", () => {
+    // e.g. a Group booking's skipped-room reason, which comes as text only
+    expect(refusalOf(new Error("Guest X is blacklisted — fraud. Remove the flag on the guest profile to book."))).toMatchObject({
+      kind: "blacklist",
+      overridable: true,
+    })
+    expect(refusalOf(new Error("Deluxe sleeps 2. Up to 1 more can be booked by arrangement."))).toMatchObject({
+      kind: "capacity",
+      overridable: true,
+    })
+    expect(refusalOf(new Error("Deluxe can't sleep 5 adults (max 3). Reduce the party."))).toMatchObject({
+      kind: "capacity",
+      overridable: false,
+    })
+  })
+})
+
+describe("isReasonRefusal", () => {
+  it("agrees with refusalOf on which refusals take a reason", () => {
+    expect(isReasonRefusal("CREDIT_BLOCKED: Acme: over limit.")).toBe(true)
+    expect(isReasonRefusal("Guest X is blacklisted — fraud.")).toBe(true)
+    expect(isReasonRefusal("Deluxe sleeps 2. Up to 1 more can be booked by arrangement.")).toBe(true)
+    expect(isReasonRefusal("NO_OPEN_SESSION: open your till under Finance → Cashier first.")).toBe(false)
+    expect(isReasonRefusal("No Deluxe room is free.")).toBe(false)
   })
 })

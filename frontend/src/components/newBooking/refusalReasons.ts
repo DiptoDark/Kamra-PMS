@@ -11,7 +11,8 @@
     Sending a reason a role can't give is a 403 that makes the app re-check
     the session, so it is never offered. */
 
-import type { Overrides, Refusal, SubmitPath } from "./submit"
+import type { Refusal } from "./refusals"
+import type { Overrides, SubmitPath } from "./submit"
 import type { NewBookingDraft } from "./types"
 
 export interface ReasonAsk {
@@ -62,7 +63,4 @@ export function reasonToAsk(
   return ask
 }
 
-/** Whether a refusal's text is one of the D6 ones (blacklist, credit,
- *  capacity), e.g. a Group booking's skipped-room reason. */
-export const isReasonRefusal = (text: string) =>
-  /blacklisted|CREDIT_BLOCKED|sleeps \d|can't sleep/i.test(text)
+export { isReasonRefusal } from "./refusals"
