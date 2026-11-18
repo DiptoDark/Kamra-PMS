@@ -467,7 +467,7 @@ export default function GuestJourney() {
                         guest: guest.name,
                         guest_name: guest.full_name,
                         phone: guest.phone ?? undefined,
-                        stays: stats.stays,
+                        // no `stays`: it means nights to book, not past stays
                       })
                     }
                   >

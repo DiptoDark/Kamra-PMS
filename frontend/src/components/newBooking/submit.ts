@@ -1,0 +1,191 @@
+/*  What the New booking drawer's buttons do with the finished draft.
+
+    Each button is a SubmitPath: a label, when it applies to the draft, and
+    `run`, which makes the calls and returns what was booked. The footer
+    shows one button per applying path (SUBMIT_PATHS order) and handles
+    busy / refusal / success the same way for all of them. Later tickets add
+    a path here instead of touching the footer:
+      - Group booking (#8): a path for two or more room rows that calls
+        create_group_booking; narrow bookOneRoom.applies to one row.
+      - Book and check in now (#9): bookAndCheckIn, calling walk_in.
+    Every path builds its params from bookingParams() and ctx.overrides, so
+    a refusal that can be overridden with a reason (#10) is retried by
+    calling run again with the reason in ctx.overrides; ctx.keys keeps the
+    same idempotency keys across that retry. */
+
+import { getCurrentProperty, newIdempotencyKey } from "../../lib/api"
+import { takeAdvance } from "./advance"
+import { createBooking, walkIn, type CreditWarning } from "./api"
+import { type Refusal } from "./refusals"
+import { amountNow, checksInToday, isGroup, payingCompany, sourceFor } from "./rules"
+import { bookGroup } from "./submitGroup"
+import type { NewBookingDraft } from "./types"
+
+export type { CreditWarning, Refusal }
+export { refusalOf } from "./refusals"
+
+/** Reasons Kamra accepts to book past a refusal (decision D6, #10). */
+export interface Overrides {
+  blacklist_override_reason?: string
+  credit_override_reason?: string
+  over_capacity_reason?: string
+}
+
+export interface SubmitContext {
+  /** made once per drawer, reused on every retry so nothing books or pays twice */
+  keys: { booking: string; payment: string }
+  overrides: Overrides
+  /** resolves once the cashier PIN window is open (opens the PIN pad if needed) */
+  ensureUnlocked: () => Promise<void>
+}
+
+export const newSubmitKeys = (): SubmitContext["keys"] => ({
+  booking: newIdempotencyKey(),
+  payment: newIdempotencyKey(),
+})
+
+/** What a submit path booked, handed to the drawer's onBooked. */
+export interface BookingDone {
+  /** the (first) reservation made */
+  reservation: string
+  room: string | null
+  /** every reservation made: one for a single booking */
+  reservations: string[]
+  /** the Group Booking, when one was made (#8) */
+  group_booking?: string
+  /** money taken with the booking */
+  paid: number
+  credit_warning?: CreditWarning
+  /** the booking was made but the payment failed: Kamra's message */
+  payment_error?: string
+  /** the booking was made and the money deliberately not taken; the footer
+   *  words why when it shows it: "rooms_skipped" = a Group booking Kamra
+   *  booked only in part, so the total no longer matched (#8) */
+  payment_withheld?: "rooms_skipped"
+  /** a Group booking's rooms Kamra didn't book, and why (#8) */
+  skipped?: { room_type: string; reason: string }[]
+  /** Book and check in now: open Kamra's CheckInDialog for `reservation` next */
+  check_in?: boolean
+}
+
+export interface SubmitPath {
+  key: string
+  /** English button label, translated where shown */
+  label: string
+  applies: (draft: NewBookingDraft) => boolean
+  /** English reason the button is shown but can't be pressed yet, or null */
+  disabledReason?: (draft: NewBookingDraft) => string | null
+  run: (draft: NewBookingDraft, ctx: SubmitContext) => Promise<BookingDone>
+  /** refusals this path can send a reason for and retry (D6, refusalReasons.ts) */
+  overrides?: Refusal["kind"][]
+  /** English advice shown under a refusal this path can't override, or null */
+  refusalHint?: (refusal: Refusal) => string | null
+}
+
+/** The params every booking call shares: stay, guest, source, payer. */
+export function bookingParams(draft: NewBookingDraft): Record<string, unknown> {
+  const g = draft.guest
+  const company = payingCompany(draft)
+  return {
+    property: getCurrentProperty(),
+    room_type: draft.room.room_type,
+    check_in_date: draft.stay.check_in_date,
+    check_out_date: draft.stay.check_out_date,
+    adults: draft.stay.adults,
+    children: draft.stay.children,
+    guest_name: g.guest_name.trim(),
+    ...(g.phone ? { phone: g.phone } : {}),
+    ...(g.guest ? { guest: g.guest } : {}),
+    ...(draft.room.room ? { room: draft.room.room } : {}),
+    source: sourceFor(draft),
+    ...(company ? { company, market_segment: "Corporate" } : {}),
+  }
+}
+
+const withOverrides = (o: Overrides) =>
+  Object.fromEntries(Object.entries(o).filter(([, v]) => typeof v === "string" && v.trim()))
+
+/** Book: create_booking for one room, then take the money when paying now.
+ *  create_booking makes no folio, so the money goes through record_advance,
+ *  which opens one (it posts add_folio_payment as an Advance). */
+export const bookOneRoom: SubmitPath = {
+  key: "book",
+  label: "Book",
+  // two or more rooms book as a Group booking (submitGroup.ts)
+  applies: (draft) => !isGroup(draft),
+  overrides: ["blacklist", "credit", "capacity"],
+  run: async (draft, ctx) => {
+    const amount = amountNow(draft)
+    // the payment isn't all-or-nothing with the booking: unlock first
+    if (amount > 0) await ctx.ensureUnlocked()
+    const r = await createBooking({
+      ...bookingParams(draft),
+      ...withOverrides(ctx.overrides),
+      idempotency_key: ctx.keys.booking,
+    })
+    const done: BookingDone = {
+      reservation: r.reservation,
+      room: r.room ?? null,
+      reservations: [r.reservation],
+      paid: 0,
+      ...(r.credit_warning ? { credit_warning: r.credit_warning } : {}),
+    }
+    return amount > 0 ? takeAdvance(done, draft, amount, ctx) : done
+  },
+}
+
+/** Book and check in now (D5): walk_in with defer_check_in=1 books one room,
+ *  assigns it and takes the money in one all-or-nothing request, leaving
+ *  the booking Confirmed so Kamra's CheckInDialog finishes the check-in
+ *  (BookingDone.check_in). walk_in always checks in today, takes no
+ *  `source` (always Walk-in) and no over-capacity reason (#15). */
+export const bookAndCheckIn: SubmitPath = {
+  key: "walk_in",
+  label: "Book and check in now",
+  // one room only: walk_in books one, so a Group booking can't check in now
+  applies: (draft) => !isGroup(draft) && checksInToday(draft),
+  disabledReason: (draft) => (draft.room?.room ? null : "Pick a room number to check in now."),
+  // walk_in takes no over-capacity reason (#15)
+  overrides: ["blacklist", "credit"],
+  refusalHint: (r) =>
+    r.kind === "capacity" && r.overridable
+      ? "Check in now can't record a reason for extra guests. Pick a bigger room type, or use Book to give the reason and check in from the booking."
+      : null,
+  run: async (draft, ctx) => {
+    const amount = amountNow(draft)
+    // walk_in asks for the PIN and an open till before it books anything
+    if (amount > 0) await ctx.ensureUnlocked()
+    const { blacklist_override_reason, credit_override_reason } = ctx.overrides
+    const p = bookingParams(draft)
+    const r = await walkIn({
+      property: p.property,
+      room_type: p.room_type,
+      room: draft.room.room,
+      check_out_date: p.check_out_date,
+      adults: p.adults,
+      children: p.children,
+      guest_name: p.guest_name,
+      ...(p.phone ? { phone: p.phone } : {}),
+      ...(p.guest ? { guest: p.guest } : {}),
+      ...(p.company ? { company: p.company } : {}),
+      ...(amount > 0 ? { payment_mode: draft.payment.mode } : {}),
+      payment_amount: amount,
+      ...withOverrides({ blacklist_override_reason, credit_override_reason }),
+      idempotency_key: ctx.keys.booking,
+      defer_check_in: 1,
+    })
+    return {
+      reservation: r.reservation,
+      room: r.room ?? null,
+      reservations: [r.reservation],
+      paid: r.paid ?? amount,
+      ...(r.credit_warning ? { credit_warning: r.credit_warning } : {}),
+      // an idempotent replay answers without checked_in: check in anyway,
+      // CheckInDialog shows where that booking stands
+      check_in: r.checked_in !== 1,
+    }
+  },
+}
+
+/** The drawer's buttons, in order. */
+export const SUBMIT_PATHS: SubmitPath[] = [bookOneRoom, bookAndCheckIn, bookGroup]

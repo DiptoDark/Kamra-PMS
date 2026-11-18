@@ -1,14 +1,16 @@
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { useSearchParams } from "react-router-dom"
 import { Plus } from "lucide-react"
 
 import { ResourceScreen } from "../components/ResourceScreen"
-import GroupBookingDialog from "../components/GroupBookingDialog"
+import { NewBookingDrawer } from "../components/newBooking/NewBookingDrawer"
 import { Button } from "../components/ui/button"
 import { useT } from "../lib/i18n"
 import { groupsConfig } from "./configs"
 
-/** Groups & Blocks with a "New group booking" flow (?new=1 opens it). */
+/** Groups & Blocks with a "New group booking" button (?new=1 opens it).
+ *  It opens the New booking drawer: adding a second room there makes the
+ *  booking a Group booking, which this screen then opens. */
 export default function Groups() {
   const { t } = useT()
   const [params, setParams] = useSearchParams()
@@ -18,9 +20,16 @@ export default function Groups() {
   }, [params])
   // bumping the key remounts the list so the new group shows up
   const [reloadKey, setReloadKey] = useState(0)
+  // the Group booking the drawer made, opened once the drawer closes (the
+  // drawer can stay open after booking to list rooms Kamra skipped)
+  const bookedGroup = useRef<string | null>(null)
   const close = () => {
     setCreating(false)
-    if (params.has("new")) setParams({}, { replace: true })
+    const group = bookedGroup.current
+    bookedGroup.current = null
+    // ?open= opens the new group's dashboard (ResourceScreen)
+    if (group) setParams({ open: group }, { replace: true })
+    else if (params.has("new")) setParams({}, { replace: true })
   }
 
   return (
@@ -36,13 +45,12 @@ export default function Groups() {
         }
       />
       {creating && (
-        <GroupBookingDialog
+        <NewBookingDrawer
+          initial={{}}
           onClose={close}
-          onDone={(group) => {
-            setCreating(false)
+          onBooked={(done) => {
             setReloadKey((k) => k + 1)
-            // ?open= opens the new group's dashboard (ResourceScreen)
-            setParams(group ? { open: group } : {}, { replace: true })
+            bookedGroup.current = done.group_booking ?? null
           }}
         />
       )}
