@@ -97,7 +97,7 @@ describe("Guest step", () => {
     })
   })
 
-  it("enters a new guest: the name is required, the phone optional but complete", async () => {
+  it("enters a new guest: the name and a complete phone are both required", async () => {
     const user = userEvent.setup()
     open()
 
@@ -106,7 +106,9 @@ describe("Guest step", () => {
 
     const name = within(guestRegion()).getByLabelText("Full name")
     expect(name).toHaveValue("Karim Uddin")
-    expect(handedOn()).toMatchObject({ guest: null, guest_name: "Karim Uddin", phone: "" })
+    // Bedlu books a new guest on name + phone: no phone, no booking
+    expect(screen.getByText("next is locked")).toBeInTheDocument()
+    expect(screen.getByText("Enter the guest's phone number.")).toBeInTheDocument()
 
     await user.clear(name)
     expect(screen.getByText("next is locked")).toBeInTheDocument()
@@ -122,6 +124,14 @@ describe("Guest step", () => {
 
     await user.type(phone, "345678")
     expect(handedOn()).toMatchObject({ guest: null, guest_name: "Karim", phone: "+8801712345678" })
+  })
+
+  it("takes a prefilled local phone that the property's country completes", async () => {
+    open({ guest_name: "Karim", phone: "01712345678" })
+
+    // the form shows no phone problem, so the step must not stay locked
+    await waitFor(() => expect(handedOn()).toMatchObject({ guest_name: "Karim", phone: "01712345678" }))
+    expect(screen.queryByText("Finish the phone number.")).not.toBeInTheDocument()
   })
 
   it("warns when the chosen guest is blacklisted, and says who may still book them", async () => {

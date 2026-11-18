@@ -1,5 +1,6 @@
 /*  Step 3 · Guest. Find a returning guest (kamra.api.guest_search) or enter
-    a new one: name required, phone optional (but complete when given).
+    a new one: name and a complete phone, both required (Bedlu books a new
+    guest on name + phone; Kamra takes either, so the drawer is the stricter).
     Either way the step hands on `guest_name` + `phone`, and `guest` when an
     existing profile was picked (create_booking wants guest_name even then).
 
@@ -27,8 +28,12 @@ export interface GuestDraft {
   /** The existing Guest profile picked, or null for a new guest. */
   guest: string | null
   guest_name: string
-  /** Fully qualified (+880...), or "" when not given. */
+  /** Fully qualified (+880...), or "" when not given (a picked profile
+   *  may have none; a new guest must give one). */
   phone: string
+  /** The property's country, which completes a local phone number; the
+   *  body keeps it here so isComplete reads the phone as the form does. */
+  country?: string | null
   /** The picked profile, for showing it (stays, VIP). */
   profile: GuestHit | null
   /** guest_alert's answer for this guest, null until asked / nothing to ask. */
@@ -81,6 +86,10 @@ function GuestBody({ draft, update }: StepProps) {
   const country = useCountry()
   const set = (patch: Partial<GuestDraft>) =>
     update((d) => ({ ...d, guest: { ...d.guest, ...patch } }))
+  useEffect(() => {
+    if (country !== (g.country ?? null)) set({ country })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [country, g.country])
 
   // Ask the server about the guest this booking would attach to.
   const phoneToCheck =
@@ -150,7 +159,8 @@ function GuestBody({ draft, update }: StepProps) {
 
   if (g.entry === "new") {
     const nameMissing = !g.guest_name.trim()
-    const phoneBad = !isPhoneComplete(g.phone, country)
+    const phoneMissing = !g.phone.trim()
+    const phoneBad = !phoneMissing && !isPhoneComplete(g.phone, country)
     return (
       <div className="flex flex-col gap-3">
         <Field label={t("Full name")}>
@@ -166,7 +176,8 @@ function GuestBody({ draft, update }: StepProps) {
         <Field label={t("Phone")}>
           <PhoneInput value={g.phone} country={country} onChange={(phone) => set({ phone })} />
         </Field>
-        {phoneBad && <p className="text-sm text-rose-600">{t("Finish the phone number, or clear it.")}</p>}
+        {phoneMissing && <p className="text-sm text-zinc-500">{t("Enter the guest's phone number.")}</p>}
+        {phoneBad && <p className="text-sm text-rose-600">{t("Finish the phone number.")}</p>}
         {alertBox}
         <button
           type="button"
@@ -282,11 +293,17 @@ function GuestSummary({ draft }: StepProps) {
   return <span>{draft.guest.guest_name.trim()}</span>
 }
 
-/** A picked profile, or a new guest with a name and a complete (or no) phone. */
+/** A picked profile, or a new guest with a name and a complete phone, read
+ *  with the property's country just as the form reads it. */
 export function guestReady(g: GuestDraft | undefined): boolean {
   if (!g) return false
   if (g.guest) return true
-  return g.entry === "new" && g.guest_name.trim().length > 0 && isPhoneComplete(g.phone)
+  return (
+    g.entry === "new" &&
+    g.guest_name.trim().length > 0 &&
+    g.phone.trim().length > 0 &&
+    isPhoneComplete(g.phone, g.country)
+  )
 }
 
 export const guestStep: BookingStep = {
