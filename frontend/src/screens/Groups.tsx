@@ -22,11 +22,11 @@ export default function Groups() {
   const [reloadKey, setReloadKey] = useState(0)
   // the Group booking the drawer made, opened once the drawer closes (the
   // drawer can stay open after booking to list rooms Kamra skipped)
-  const made = useRef<string | null>(null)
+  const bookedGroup = useRef<string | null>(null)
   const close = () => {
     setCreating(false)
-    const group = made.current
-    made.current = null
+    const group = bookedGroup.current
+    bookedGroup.current = null
     // ?open= opens the new group's dashboard (ResourceScreen)
     if (group) setParams({ open: group }, { replace: true })
     else if (params.has("new")) setParams({}, { replace: true })
@@ -50,7 +50,7 @@ export default function Groups() {
           onClose={close}
           onBooked={(done) => {
             setReloadKey((k) => k + 1)
-            made.current = done.group_booking ?? null
+            bookedGroup.current = done.group_booking ?? null
           }}
         />
       )}

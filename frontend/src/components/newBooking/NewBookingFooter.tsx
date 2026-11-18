@@ -24,7 +24,7 @@ import {
 } from "./submit"
 import type { BookingStep, StepProps } from "./types"
 
-const BIG = "h-11 min-w-24 px-5 text-base"
+const FOOTER_BUTTON_SIZE = "h-11 min-w-24 px-5 text-base"
 
 export function NewBookingFooter(
   props: StepProps & {
@@ -100,7 +100,7 @@ export function NewBookingFooter(
           )}
         </div>
         <div className="flex justify-end">
-          <Button className={BIG} onClick={props.onClose}>
+          <Button className={FOOTER_BUTTON_SIZE} onClick={props.onClose}>
             {t("Done")}
           </Button>
         </div>
@@ -138,7 +138,7 @@ export function NewBookingFooter(
             />
           </Field>
           <div className="flex justify-end">
-            <Button type="submit" className={BIG} disabled={!reason.trim() || busy !== null}>
+            <Button type="submit" className={FOOTER_BUTTON_SIZE} disabled={!reason.trim() || busy !== null}>
               {t("Book with this reason")}
             </Button>
           </div>
@@ -153,13 +153,13 @@ export function NewBookingFooter(
         </p>
       ))}
       <div className="flex items-center justify-end gap-2">
-        <Button variant="outline" className={BIG} onClick={props.onClose} disabled={busy !== null}>
+        <Button variant="outline" className={FOOTER_BUTTON_SIZE} onClick={props.onClose} disabled={busy !== null}>
           {t("Cancel")}
         </Button>
         {paths.map((p) => (
           <Button
             key={p.key}
-            className={BIG}
+            className={FOOTER_BUTTON_SIZE}
             disabled={!props.ready || busy !== null || !!p.disabledReason?.(draft)}
             aria-busy={busy === p.key || undefined}
             onClick={() => void submit(p)}

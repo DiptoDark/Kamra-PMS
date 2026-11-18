@@ -2,14 +2,18 @@
     (kamra.api.available_rooms, one call per room type) and asks for a
     room type; a specific room is optional here and auto-assigned on Book. */
 
-import { useEffect, useState } from "react"
-import { call, getBookingOptions, getCurrentProperty, type BookingOptions } from "../../../lib/api"
+import { useState } from "react"
+import type { BookingOptions } from "../../../lib/api"
 import { useT } from "../../../lib/i18n"
-import { todayPlus } from "../../../lib/stay"
 import { cn } from "../../../lib/utils"
+import { availableRooms, getBookingOptions, type FreeRoom } from "../api"
 import { Field, inputCls } from "../fields"
+import { checksInToday, isGroup, stayKey } from "../rules"
 import type { BookingStep, StayDraft, StepProps } from "../types"
-import { emptyMoreRooms, isGroup, MoreRooms, moreRoomsComplete, refreshMoreRooms } from "./MoreRooms"
+import { useKamra } from "../useKamra"
+import { emptyMoreRooms, MoreRooms, moreRoomsComplete, refreshMoreRooms } from "./MoreRooms"
+
+export type { FreeRoom }
 
 /** The room type & room slice of the draft. */
 export interface RoomDraft {
@@ -39,15 +43,7 @@ const emptyRoom = (): RoomDraft => ({
   freeFor: "",
 })
 
-export const stayKey = (stay: StayDraft) => `${stay.check_in_date}|${stay.check_out_date}`
-
 type RoomType = BookingOptions["room_types"][number]
-
-export interface FreeRoom {
-  name: string
-  room_number: string
-  housekeeping_status?: string
-}
 
 /** Clean or inspected rooms first, then by room number. */
 function cleanFirst(rooms: FreeRoom[]) {
@@ -65,36 +61,32 @@ function RoomBody({ draft, update }: StepProps) {
   const [types, setTypes] = useState<RoomType[] | null>(null)
   const [free, setFree] = useState<Record<string, FreeRoom[]> | null>(null)
 
-  useEffect(() => {
-    let live = true
-    getBookingOptions()
-      .then((o) => live && setTypes(o.room_types))
-      .catch(() => live && setTypes([]))
-    return () => {
-      live = false
-    }
-  }, [])
+  useKamra(
+    getBookingOptions,
+    [],
+    (o) => setTypes(o.room_types),
+    () => setTypes([]),
+    0,
+  )
 
-  useEffect(() => {
-    if (!types) return
-    let live = true
-    const key = `${check_in_date}|${check_out_date}`
-    setFree(null)
-    Promise.all(
-      types.map((rt) =>
-        call<FreeRoom[]>("kamra.api.available_rooms", {
-          property: getCurrentProperty(),
-          room_type: rt.name,
-          check_in_date,
-          check_out_date,
-          // checking in today: leave out rooms whose guest is still in them
-          ...(check_in_date === todayPlus(0) ? { ready_now: 1 } : {}),
-        })
-          .catch(() => [] as FreeRoom[])
-          .then((rooms) => [rt.name, cleanFirst(rooms)] as const),
-      ),
-    ).then((pairs) => {
-      if (!live) return
+  const key = stayKey(draft.stay)
+  // checking in today: leave out rooms whose guest is still in them
+  const readyNow = checksInToday(draft)
+  useKamra(
+    types
+      ? () => {
+          setFree(null)
+          return Promise.all(
+            types.map((rt) =>
+              availableRooms({ room_type: rt.name, check_in_date, check_out_date, ready_now: readyNow })
+                .catch(() => [] as FreeRoom[])
+                .then((rooms) => [rt.name, cleanFirst(rooms)] as const),
+            ),
+          )
+        }
+      : null,
+    [types, check_in_date, check_out_date, readyNow],
+    (pairs) => {
       const map: Record<string, FreeRoom[]> = Object.fromEntries(pairs)
       setFree(map)
       // the chosen type's rooms now answer for this stay; a picked room
@@ -103,7 +95,7 @@ function RoomBody({ draft, update }: StepProps) {
         // the extra rooms (MoreRooms) learn the same answer
         const d = refreshMoreRooms(d0, map, key)
         // a prefilled type this property doesn't have is dropped, not kept
-        const type = types.find((rt) => rt.name === d.room.room_type)
+        const type = types?.find((rt) => rt.name === d.room.room_type)
         if (!type) return d.room.room_type ? { ...d, room: emptyRoom() } : d
         const rooms = map[type.name] ?? []
         const room = rooms.some((r) => r.name === d.room.room) ? d.room.room : ""
@@ -112,17 +104,13 @@ function RoomBody({ draft, update }: StepProps) {
           room: { ...d.room, room_type_name: type.room_type_name, room, free: rooms, freeFor: key },
         }
       })
-    })
-    return () => {
-      live = false
-    }
-    // `update` is a fresh closure each render; the stay is what matters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [types, check_in_date, check_out_date])
+    },
+    () => {},
+    0,
+  )
 
   if (!types || !free) return <p className="text-sm text-zinc-500">{t("Checking what's free…")}</p>
 
-  const key = stayKey(draft.stay)
   const chosen = draft.room
   const setRoom = (patch: Partial<RoomDraft>) =>
     update((d) => ({ ...d, room: { ...d.room, ...patch } }))

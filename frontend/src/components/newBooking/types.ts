@@ -29,6 +29,10 @@ export interface StayDraft {
  *  by module augmentation (see the comment at the top of this file). */
 export interface NewBookingDraft {
   stay: StayDraft
+  /** Kamra's business date for the property (YYYY-MM-DD), once
+   *  kamra.cashier.my_till answers; unset/null = use the local date
+   *  (rules.businessToday) */
+  businessDate?: string | null
 }
 
 export type DraftUpdate = (change: (draft: NewBookingDraft) => NewBookingDraft) => void

@@ -13,12 +13,14 @@
     calling run again with the reason in ctx.overrides; ctx.keys keeps the
     same idempotency keys across that retry. */
 
-import { call, getCurrentProperty, newIdempotencyKey, serverError } from "../../lib/api"
-import { todayPlus } from "../../lib/stay"
-import { isGroup } from "./steps/MoreRooms"
-import { amountNow, sourceFor } from "./steps/SourcePaymentStep"
+import { getCurrentProperty, newIdempotencyKey, serverError } from "../../lib/api"
+import { takeAdvance } from "./advance"
+import { createBooking, walkIn, type CreditWarning } from "./api"
+import { amountNow, checksInToday, isGroup, payingCompany, sourceFor } from "./rules"
 import { bookGroup } from "./submitGroup"
 import type { NewBookingDraft } from "./types"
+
+export type { CreditWarning }
 
 /** Reasons Kamra accepts to book past a refusal (decision D6, #10). */
 export interface Overrides {
@@ -39,12 +41,6 @@ export const newSubmitKeys = (): SubmitContext["keys"] => ({
   booking: newIdempotencyKey(),
   payment: newIdempotencyKey(),
 })
-
-export interface CreditWarning {
-  company: string
-  reasons: string[]
-  overridden: boolean
-}
 
 /** What a submit path booked, handed to the drawer's onBooked. */
 export interface BookingDone {
@@ -83,7 +79,7 @@ export interface SubmitPath {
 /** The params every booking call shares: stay, guest, source, payer. */
 export function bookingParams(draft: NewBookingDraft): Record<string, unknown> {
   const g = draft.guest
-  const company = draft.payment.payer === "company" ? draft.payment.company : ""
+  const company = payingCompany(draft)
   return {
     property: getCurrentProperty(),
     room_type: draft.room.room_type,
@@ -116,11 +112,7 @@ export const bookOneRoom: SubmitPath = {
     const amount = amountNow(draft)
     // the payment isn't all-or-nothing with the booking: unlock first
     if (amount > 0) await ctx.ensureUnlocked()
-    const r = await call<{
-      reservation: string
-      room: string | null
-      credit_warning?: CreditWarning
-    }>("kamra.api.create_booking", {
+    const r = await createBooking({
       ...bookingParams(draft),
       ...withOverrides(ctx.overrides),
       idempotency_key: ctx.keys.booking,
@@ -132,18 +124,7 @@ export const bookOneRoom: SubmitPath = {
       paid: 0,
       ...(r.credit_warning ? { credit_warning: r.credit_warning } : {}),
     }
-    if (amount <= 0) return done
-    try {
-      await call("kamra.api.record_advance", {
-        reservation: r.reservation,
-        amount,
-        mode: draft.payment.mode,
-        idempotency_key: ctx.keys.payment,
-      })
-      return { ...done, paid: amount }
-    } catch (e) {
-      return { ...done, payment_error: serverError(e) }
-    }
+    return amount > 0 ? takeAdvance(done, draft, amount, ctx) : done
   },
 }
 
@@ -156,12 +137,12 @@ export const bookAndCheckIn: SubmitPath = {
   key: "walk_in",
   label: "Book and check in now",
   // one room only: walk_in books one, so a Group booking can't check in now
-  applies: (draft) => !isGroup(draft) && draft.stay.check_in_date === todayPlus(0),
+  applies: (draft) => !isGroup(draft) && checksInToday(draft),
   disabledReason: (draft) => (draft.room?.room ? null : "Pick a room number to check in now."),
   // walk_in takes no over-capacity reason (#15)
   overrides: ["blacklist", "credit"],
   refusalHint: (r) =>
-    r.kind === "capacity" && r.reasonable
+    r.kind === "capacity" && r.overridable
       ? "Check in now can't record a reason for extra guests. Pick a bigger room type, or use Book to give the reason and check in from the booking."
       : null,
   run: async (draft, ctx) => {
@@ -170,13 +151,7 @@ export const bookAndCheckIn: SubmitPath = {
     if (amount > 0) await ctx.ensureUnlocked()
     const { blacklist_override_reason, credit_override_reason } = ctx.overrides
     const p = bookingParams(draft)
-    const r = await call<{
-      reservation: string
-      room: string | null
-      checked_in?: number
-      paid?: number
-      credit_warning?: CreditWarning
-    }>("kamra.api.walk_in", {
+    const r = await walkIn({
       property: p.property,
       room_type: p.room_type,
       room: draft.room.room,
@@ -218,7 +193,7 @@ export interface Refusal {
   kind: "blacklist" | "credit" | "capacity" | "till" | "pin" | "other"
   /** Kamra would book past it with a reason: blacklist, credit, and over
    *  capacity while the room type has extra beds left */
-  reasonable: boolean
+  overridable: boolean
 }
 
 export function refusalOf(e: unknown): Refusal {
@@ -254,7 +229,7 @@ export function refusalOf(e: unknown): Refusal {
             : /^PIN_|cashier PIN/.test(text)
               ? "pin"
               : "other"
-  const reasonable =
+  const overridable =
     kind === "blacklist" || kind === "credit" || (kind === "capacity" && !/can't sleep|Reduce the party/.test(text))
-  return { message, title, exc_type, kind, reasonable }
+  return { message, title, exc_type, kind, overridable }
 }

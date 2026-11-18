@@ -5,6 +5,7 @@
 import { useT } from "../../../lib/i18n"
 import { addDays, nightsBetween, parseDate, todayPlus } from "../../../lib/stay"
 import { Field, inputCls } from "../fields"
+import { guestCountProblem } from "../rules"
 import type { BookingStep, NewBookingDraft, StayDraft, StepProps } from "../types"
 
 /** Why the stay can't be booked yet (English, for t()), or null when it can. */
@@ -13,9 +14,7 @@ export function stayProblem(stay: StayDraft): string | null {
   if (stay.check_in_date < todayPlus(0)) return "Check-in can't be in the past."
   if (!parseDate(stay.check_out_date)) return "Enter the check-out date."
   if (stay.check_out_date <= stay.check_in_date) return "Check-out must be after check-in."
-  if (!Number.isInteger(stay.adults) || stay.adults < 1) return "At least one adult."
-  if (!Number.isInteger(stay.children) || stay.children < 0) return "Children can't be negative."
-  return null
+  return guestCountProblem(stay.adults, stay.children)
 }
 
 function count(value: string) {

@@ -8,10 +8,11 @@
 import { Trash2 } from "lucide-react"
 import type { BookingOptions } from "../../../lib/api"
 import { useT } from "../../../lib/i18n"
+import type { FreeRoom } from "../api"
 import { Field, inputCls } from "../fields"
-import type { NewBookingDraft, StayDraft, StepProps } from "../types"
+import { extraRows, guestCountProblem, stayKey } from "../rules"
+import type { NewBookingDraft, StepProps } from "../types"
 import type { RateDraft } from "./RateStep"
-import type { FreeRoom } from "./RoomStep"
 
 /** One room after the first. */
 export interface RoomRow {
@@ -44,14 +45,6 @@ declare module "../types" {
 
 export const emptyMoreRooms = (): MoreRoomsDraft => ({ rows: [], free: null, freeFor: "" })
 
-/** The rooms after the first; none for a plain Booking. */
-export const extraRows = (draft: NewBookingDraft): RoomRow[] => draft.moreRooms?.rows ?? []
-
-/** Two or more rooms: this is a Group booking. */
-export const isGroup = (draft: NewBookingDraft) => extraRows(draft).length > 0
-
-const stayKey = (stay: StayDraft) => `${stay.check_in_date}|${stay.check_out_date}`
-
 /** The room step learnt what's free for the stay `key`: keep it, and let a
  *  picked room that's no longer free go back to "assign automatically". */
 export function refreshMoreRooms(
@@ -75,8 +68,8 @@ export function rowProblem(
 ): { message: string; vars?: Record<string, string | number> } | null {
   const rows = extraRows(draft)
   const row = rows[index]
-  if (!Number.isInteger(row.adults) || row.adults < 1) return { message: "At least one adult." }
-  if (!Number.isInteger(row.children) || row.children < 0) return { message: "Children can't be negative." }
+  const guests = guestCountProblem(row.adults, row.children)
+  if (guests) return { message: guests }
   if (!row.room_type) return null
   const free = draft.moreRooms.free?.[row.room_type] ?? []
   const type = row.room_type_name

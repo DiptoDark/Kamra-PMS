@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { Quote } from "../../lib/api"
 import { bookAndCheckIn, bookOneRoom, newSubmitKeys, SUBMIT_PATHS } from "./submit"
-import { quoteKey, rowQuoteKey } from "./steps/RateStep"
+import { quoteKey, rowQuoteKey } from "./rules"
 import { bookGroup } from "./submitGroup"
 import type { NewBookingDraft } from "./types"
 

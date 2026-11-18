@@ -12,11 +12,11 @@
     as for one room; it isn't taken when any room was skipped, since the
     amount was the total for every room. */
 
-import { call, getCurrentProperty, serverError } from "../../lib/api"
 import { t } from "../../lib/i18n"
+import { createGroupBooking } from "./api"
 import { isReasonRefusal } from "./refusalReasons"
-import { extraRows, isGroup } from "./steps/MoreRooms"
-import { amountNow, payingCompany } from "./steps/SourcePaymentStep"
+import { amountNow, extraRows, isGroup, payingCompany } from "./rules"
+import { takeAdvance } from "./advance"
 import type { BookingDone, SubmitPath } from "./submit"
 import type { NewBookingDraft } from "./types"
 
@@ -54,12 +54,7 @@ export const bookGroup: SubmitPath = {
     if (amount > 0) await ctx.ensureUnlocked()
     const company = payingCompany(draft)
     const g = draft.guest
-    const r = await call<{
-      group_booking: string
-      created: string[]
-      skipped: { room_type: string; reason: string }[]
-    }>("kamra.api.create_group_booking", {
-      property: getCurrentProperty(),
+    const r = await createGroupBooking({
       group_name: groupName(draft),
       check_in_date: draft.stay.check_in_date,
       check_out_date: draft.stay.check_out_date,
@@ -80,16 +75,6 @@ export const bookGroup: SubmitPath = {
     if (amount <= 0) return done
     if (skipped.length > 0)
       return { ...done, payment_error: t("Not every room was booked, so no payment was taken.") }
-    try {
-      await call("kamra.api.record_advance", {
-        reservation: r.created[0],
-        amount,
-        mode: draft.payment.mode,
-        idempotency_key: ctx.keys.payment,
-      })
-      return { ...done, paid: amount }
-    } catch (e) {
-      return { ...done, payment_error: serverError(e) }
-    }
+    return takeAdvance(done, draft, amount, ctx)
   },
 }

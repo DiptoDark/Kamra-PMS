@@ -11,18 +11,14 @@
 
 import { useEffect, useState } from "react"
 import { ShieldAlert, Star, X } from "lucide-react"
-import {
-  getBookingOptions,
-  guestAlert,
-  guestSearch,
-  type GuestAlert,
-  type GuestHit,
-} from "../../../lib/api"
+import type { GuestAlert, GuestHit } from "../../../lib/api"
 import { useT } from "../../../lib/i18n"
 import { isPhoneComplete } from "../../../lib/phone"
 import PhoneInput from "../../PhoneInput"
+import { getBookingOptions, guestAlert, guestSearch } from "../api"
 import { Field, inputCls } from "../fields"
 import type { BookingStep, NewBookingDraft, StepProps } from "../types"
+import { useKamra } from "../useKamra"
 
 /** The guest the booking is for. */
 export interface GuestDraft {
@@ -89,22 +85,17 @@ function GuestBody({ draft, update }: StepProps) {
   // Ask the server about the guest this booking would attach to.
   const phoneToCheck =
     !g.guest && g.entry === "new" && g.phone && isPhoneComplete(g.phone, country) ? g.phone : ""
+  const nothingToCheck = !g.guest && !phoneToCheck
   useEffect(() => {
-    if (!g.guest && !phoneToCheck) {
-      if (g.alert) set({ alert: null })
-      return
-    }
-    let live = true
-    const timer = setTimeout(() => {
-      guestAlert(g.guest ? { guest: g.guest } : { phone: phoneToCheck })
-        .then((a) => live && set({ alert: a }))
-        .catch(() => live && set({ alert: null }))
-    }, 250)
-    return () => {
-      live = false
-      clearTimeout(timer)
-    }
-  }, [g.guest, phoneToCheck])
+    if (nothingToCheck && g.alert) set({ alert: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nothingToCheck])
+  useKamra(
+    nothingToCheck ? null : () => guestAlert(g.guest ? { guest: g.guest } : { phone: phoneToCheck }),
+    [g.guest, phoneToCheck],
+    (alert) => set({ alert }),
+    () => set({ alert: null }),
+  )
 
   const alertBox = g.alert && Boolean(g.alert.blacklisted) && (
     <div
@@ -138,7 +129,7 @@ function GuestBody({ draft, update }: StepProps) {
               )}
             </p>
             <p className="text-sm text-zinc-500">
-              {[g.phone, g.profile?.stays ? tn(g.profile.stays, "{n} stay", "{n} stays") : null]
+              {[g.phone, g.profile?.stays ? tn(g.profile.stays, "{n} past booking", "{n} past bookings") : null]
                 .filter(Boolean)
                 .join(" · ")}
             </p>
@@ -197,22 +188,16 @@ function GuestSearch({ update }: StepProps) {
   const [hits, setHits] = useState<GuestHit[] | null>(null)
   const query = q.trim()
 
+  const tooShort = query.length < 2
   useEffect(() => {
-    if (query.length < 2) {
-      setHits(null)
-      return
-    }
-    let live = true
-    const timer = setTimeout(() => {
-      guestSearch(query)
-        .then((h) => live && setHits(h))
-        .catch(() => live && setHits([]))
-    }, 250)
-    return () => {
-      live = false
-      clearTimeout(timer)
-    }
-  }, [query])
+    if (tooShort) setHits(null)
+  }, [tooShort, query])
+  useKamra(
+    tooShort ? null : () => guestSearch(query),
+    [query],
+    setHits,
+    () => setHits([]),
+  )
 
   const pick = (h: GuestHit) =>
     update((d) => ({
@@ -273,7 +258,7 @@ function GuestSearch({ update }: StepProps) {
               )}
               <span className="ml-auto text-xs text-zinc-400">
                 {h.phone ? `${h.phone} · ` : ""}
-                {tn(h.stays, "{n} stay", "{n} stays")}
+                {tn(h.stays, "{n} past booking", "{n} past bookings")}
               </span>
             </button>
           ))}

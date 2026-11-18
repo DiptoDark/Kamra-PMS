@@ -7,20 +7,28 @@
 
 import { useEffect, useState } from "react"
 import { ShieldAlert } from "lucide-react"
-import { call, getBookingOptions, getCurrentProperty, type BookingOptions } from "../../../lib/api"
+import type { BookingOptions } from "../../../lib/api"
 import { useT } from "../../../lib/i18n"
 import { fmtMoney, useLocale } from "../../../lib/money"
-import { todayPlus } from "../../../lib/stay"
 import { cn } from "../../../lib/utils"
-import TillCard, { type TillState } from "../../TillCard"
+import TillCard from "../../TillCard"
 import { Button } from "../../ui/button"
+import { companyCreditStatus, getBookingOptions, myTill, type CompanyCredit, type TillState } from "../api"
 import { Field, inputCls } from "../fields"
+import {
+  amountNow,
+  checksInToday,
+  isGroup,
+  payingCompany,
+  paysNow,
+  quoteTotal,
+  sourceFor,
+  type BookingSource,
+} from "../rules"
 import type { BookingStep, NewBookingDraft, StepProps } from "../types"
-import { isGroup } from "./MoreRooms"
-import { quoteTotal } from "./RateStep"
+import { useKamra } from "../useKamra"
 
-/** Kamra's create_booking `source` values the desk can pick (D3). */
-export type BookingSource = "Walk-in" | "Phone" | "Manual"
+export type { BookingSource, CompanyCredit }
 
 export interface PaymentDraft {
   /** the source the desk picked, null = the default (sourceFor) */
@@ -52,54 +60,14 @@ declare module "../types" {
   }
 }
 
-/** kamra.credit.company_credit_status's answer (the parts shown). */
-export interface CompanyCredit {
-  applies: boolean
-  ok: boolean
-  blocked?: boolean
-  policy: string
-  company?: string
-  reasons: string[]
-  can_override?: boolean
-}
-
-/** The company paying the room, or "" when the guest pays. */
-export const payingCompany = (draft: NewBookingDraft) =>
-  draft.payment.payer === "company" ? draft.payment.company : ""
-
 /** What the credit check was asked for: the company and the total. */
 const creditKey = (draft: NewBookingDraft) => `${payingCompany(draft)}|${quoteTotal(draft) ?? ""}`
-
-const DEBOUNCE_MS = 250
 
 const SOURCES: { value: BookingSource; label: string }[] = [
   { value: "Walk-in", label: "Walk-in" },
   { value: "Phone", label: "Phone" },
   { value: "Manual", label: "Direct" },
 ]
-
-const checksInToday = (draft: NewBookingDraft) => draft.stay.check_in_date === todayPlus(0)
-
-/** The booking source create_booking is sent. */
-export function sourceFor(draft: NewBookingDraft): BookingSource {
-  return draft.payment.source ?? (checksInToday(draft) ? "Walk-in" : "Phone")
-}
-
-/** Money is taken when the booking is made. */
-export function paysNow(draft: NewBookingDraft): boolean {
-  const pay = draft.payment.pay
-  // a company paying the room means nothing is collected by default
-  return pay ? pay === "now" : checksInToday(draft) && !payingCompany(draft)
-}
-
-/** What to collect now: 0 when paying on arrival, else the typed amount or
- *  the booking's total. NaN when the typed amount isn't a number. */
-export function amountNow(draft: NewBookingDraft): number {
-  if (!paysNow(draft)) return 0
-  const typed = draft.payment.amount
-  if (typed === null) return quoteTotal(draft) ?? 0
-  return typed.trim() === "" ? NaN : Number(typed)
-}
 
 /** A row of radio buttons styled as a segmented control. */
 function Segmented<V extends string>(props: {
@@ -156,56 +124,40 @@ function SourcePaymentBody({ draft, update }: StepProps) {
   // D7: money is only taken through an open till, so ask before Book (the
   // advance after create_booking isn't all-or-nothing with the booking)
   const [tillAsk, setTillAsk] = useState(0)
-  useEffect(() => {
-    if (!now) return
-    let live = true
-    call<TillState>("kamra.cashier.my_till", { property: getCurrentProperty() })
-      .then((till) => live && set({ till }))
-      .catch(() => live && set({ till: null }))
-    return () => {
-      live = false
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [now, tillAsk])
+  useKamra(
+    now ? myTill : null,
+    [now, tillAsk],
+    (till) => set({ till }),
+    () => set({ till: null }),
+    0,
+  )
   const tillClosed = now && p.till !== null && !p.till.open
   const amount = amountNow(draft)
 
   // the companies the desk can bill (booking_options)
   const [companies, setCompanies] = useState<BookingOptions["companies"]>([])
-  useEffect(() => {
-    let live = true
-    getBookingOptions()
-      .then((o) => live && setCompanies(o?.companies ?? []))
-      .catch(() => live && setCompanies([]))
-    return () => {
-      live = false
-    }
-  }, [])
+  useKamra(
+    getBookingOptions,
+    [],
+    (o) => setCompanies(o?.companies ?? []),
+    () => setCompanies([]),
+    0,
+  )
 
   // the credit check create_booking runs, asked up front for the total
   const company = payingCompany(draft)
   const total = quoteTotal(draft)
-  const ckey = creditKey(draft)
-  useEffect(() => {
-    if (!company || total === null || p.creditFor === ckey) return
-    let live = true
-    const timer = setTimeout(() => {
-      call<CompanyCredit>("kamra.credit.company_credit_status", {
-        company,
-        property: getCurrentProperty(),
-        amount: total,
-      })
-        .then((credit) => live && set({ credit, creditFor: ckey }))
-        // the server checks again on Book; don't hold the desk up here
-        .catch(() => live && set({ credit: null, creditFor: ckey }))
-    }, DEBOUNCE_MS)
-    return () => {
-      live = false
-      clearTimeout(timer)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ckey])
-  const credit = company && p.creditFor === ckey ? p.credit : null
+  const creditAskedFor = creditKey(draft)
+  useKamra(
+    !company || total === null || p.creditFor === creditAskedFor
+      ? null
+      : () => companyCreditStatus(company, total),
+    [creditAskedFor],
+    (credit) => set({ credit, creditFor: creditAskedFor }),
+    // the server checks again on Book; don't hold the desk up here
+    () => set({ credit: null, creditFor: creditAskedFor }),
+  )
+  const credit = company && p.creditFor === creditAskedFor ? p.credit : null
 
   return (
     <div className="flex flex-col gap-4">
@@ -388,7 +340,7 @@ export const sourcePaymentStep: BookingStep = {
       pay: null,
       amount: null,
       mode: "",
-payer: "guest",
+      payer: "guest",
       company: "",
       company_name: "",
       credit: null,

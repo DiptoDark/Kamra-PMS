@@ -55,7 +55,7 @@ export function reasonToAsk(
   sent: Overrides,
 ): ReasonAsk | null {
   const ask = ASKS[refusal.kind]
-  if (!ask || !refusal.reasonable) return null
+  if (!ask || !refusal.overridable) return null
   if (!path.overrides?.includes(refusal.kind)) return null
   if (!roleMayOverride(refusal.kind, draft)) return null
   if (sent[ask.param]?.trim()) return null
