@@ -386,6 +386,37 @@ describe("Book (one room)", () => {
     await waitFor(() => expect(book()).toBeEnabled())
   })
 
+  it("says when it couldn't check the till, and offers Pay on arrival (B8)", async () => {
+    const user = userEvent.setup()
+    let fail = true
+    server["kamra.cashier.my_till"] = () => {
+      if (fail) throw new Error("Server error")
+      return { property: "Test Hotel", required: true, open: true }
+    }
+    open()
+
+    expect(await step().findByText("Couldn't check your till, so money can't be taken now.")).toBeInTheDocument()
+    expect(book()).toBeDisabled()
+
+    // trying again once Kamra answers lets the money through
+    fail = false
+    await user.click(step().getByRole("button", { name: "Try again" }))
+    await waitFor(() => expect(book()).toBeEnabled())
+    expect(step().queryByText("Couldn't check your till, so money can't be taken now.")).not.toBeInTheDocument()
+  })
+
+  it("with the till unknown, Pay on arrival books with nothing collected (B8)", async () => {
+    const user = userEvent.setup()
+    server["kamra.cashier.my_till"] = () => {
+      throw new Error("Server error")
+    }
+    open()
+
+    await user.click(await step().findByRole("button", { name: "Pay on arrival" }))
+    expect(step().getByRole("radio", { name: "On arrival" })).toBeChecked()
+    await waitFor(() => expect(book()).toBeEnabled())
+  })
+
   it("needs an amount above zero to collect now", async () => {
     const user = userEvent.setup()
     open()

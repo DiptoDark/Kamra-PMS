@@ -52,6 +52,9 @@ export interface PaymentDraft {
   /** the clerk's till (kamra.cashier.my_till), asked when collecting now;
    *  null until it answers */
   till: TillState | null
+  /** my_till failed: the till's state is unknown, so nothing is collected
+   *  until it answers (D7) */
+  tillUnknown?: boolean
 }
 
 declare module "../types" {
@@ -127,11 +130,12 @@ function SourcePaymentBody({ draft, update }: StepProps) {
   useKamra(
     now ? myTill : null,
     [now, tillAsk],
-    (till) => set({ till }),
-    () => set({ till: null }),
+    (till) => set({ till, tillUnknown: false }),
+    () => set({ till: null, tillUnknown: true }),
     0,
   )
   const tillClosed = now && p.till !== null && !p.till.open
+  const tillUnknown = now && p.till === null && Boolean(p.tillUnknown)
   const amount = amountNow(draft)
 
   // the companies the desk can bill (booking_options)
@@ -270,6 +274,21 @@ function SourcePaymentBody({ draft, update }: StepProps) {
             </p>
           )}
         </div>
+        {tillUnknown && (
+          <div className="flex flex-col items-start gap-2">
+            <p role="alert" className="text-sm text-amber-800">
+              {t("Couldn't check your till, so money can't be taken now.")}
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setTillAsk((n) => n + 1)}>
+                {t("Try again")}
+              </Button>
+              <Button variant="outline" onClick={() => set({ pay: "arrival" })}>
+                {t("Pay on arrival")}
+              </Button>
+            </div>
+          </div>
+        )}
         {tillClosed && (
           <div className="flex flex-col items-start gap-2">
             <p role="alert" className="text-sm text-amber-800">
@@ -347,6 +366,7 @@ export const sourcePaymentStep: BookingStep = {
       credit: null,
       creditFor: "",
       till: null,
+      tillUnknown: false,
     },
   }),
   isComplete: (draft) => {
