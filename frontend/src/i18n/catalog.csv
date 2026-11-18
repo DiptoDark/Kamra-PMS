@@ -318,6 +318,8 @@
 {n} out of service,{n} out of service,{n} خارج الخدمة,Fuera de servicio: {n},{n} fora de serviço,{n} 间暂停使用,components/RoomInsights.tsx,n,translated
 {n} overdue,{n} overdue,{n} متأخر,Vencidos: {n},{n} atrasado,{n} 项逾期,,n,translated
 {n} overdue · Housekeeping,{n} overdue · Housekeeping,{n} متأخرة · التدبير المنزلي,Limpieza · tareas vencidas: {n},{n} atrasado · Limpeza,{n} 项逾期 · 客房清洁,screens/Today.tsx,n,translated
+{n} past booking,{n} past booking,,,,,components/newBooking/steps/GuestStep.tsx,n,needs_translation
+{n} past bookings,{n} past bookings,,,,,components/newBooking/steps/GuestStep.tsx,n,needs_translation
 {n} pc,{n} pc,{n} قطعة,{n} pzas.,{n} pc,{n} 件,screens/Laundry.tsx,n,translated
 {n} pending,{n} pending,{n} قيد الانتظار,Pendientes: {n},{n} pendente,{n} 项待处理,screens/Laundry.tsx,n,translated
 {n} photo,{n} photo,{n} صورة,{n} foto,{n} foto,{n} 张照片,screens/PublicBooking.tsx,n,translated
@@ -341,9 +343,7 @@
 {n} rows,{n} rows,{n} صف,{n} filas,{n} linhas,{n} 行,,n,translated
 {n} seats,{n} seats,{n} مقاعد,Asientos: {n},{n} assentos,{n} 个座位,screens/POS.tsx,n,translated
 {n} selected · {v0} owed,{n} selected · {v0} owed,{n} محددة · {v0} مستحق,{n} seleccionadas · {v0} por cobrar,{n} selecionadas · {v0} em aberto,,screens/Receivables.tsx,n v0,needs_translation
-{n} stay,{n} stay,,,,,components/newBooking/steps/GuestStep.tsx,n,needs_translation
 {n} staying,{n} staying,{n} مقيم,Huéspedes alojados: {n},{n} ficando,{n} 位在住,screens/Today.tsx,n,translated
-{n} stays,{n} stays,,,,,components/newBooking/steps/GuestStep.tsx,n,needs_translation
 {n} still need IDs or other steps: use Finish on each room.,{n} still need IDs or other steps: use Finish on each room.,{n} ما زالت تحتاج هويات أو خطوات أخرى: استخدم إنهاء في كل غرفة.,{n} aún necesitan identificaciones u otros pasos: usa Terminar en cada habitación.,{n} ainda precisam de documentos ou outras etapas: use Concluir em cada quarto.,{n} 间仍需证件或其他步骤：请对每间客房使用「完成」。,,n,translated
 {n} task{s} for you - arrivals first,{n} task{s} for you - arrivals first,{n} مهمة{s} لك - الوصول أولاً,{n} tarea{s} para usted: llegadas primero,{n} tarefa{s} para você - chegadas primeiro,你有 {n} 项任务{s} - 先处理到店,screens/HkApp.tsx,n s,translated
 {n} this session,{n} this session,{n} في هذه الجلسة,En esta sesión: {n},{n} nesta sessão,本次 {n} 项,screens/CashierTill.tsx,n,translated
@@ -1255,6 +1255,7 @@ Booked · Room {n}. Check-in not finished yet.,Booked · Room {n}. Check-in not 
 Booked {booked} of {total} rooms in {group}.,Booked {booked} of {total} rooms in {group}.,,,,,components/newBooking/NewBookingFooter.tsx,booked total group,needs_translation
 Booked {ref} at {property}.,Booked {ref} at {property}.,تم الحجز {ref} في {property}.,Reservado {ref} en {property}.,Reservado {ref} em {property}.,已在 {property} 预订 {ref}。,screens/CRS.tsx,ref property,translated
 "Booked {reservation}, but the payment wasn't recorded.","Booked {reservation}, but the payment wasn't recorded.",,,,,components/newBooking/NewBookingFooter.tsx,reservation,needs_translation
+Booked {reservation}. {company}: company credit warning,Booked {reservation}. {company}: company credit warning,,,,,components/newBooking/NewBookingFooter.tsx,reservation company,needs_translation
 Booked {v0} of {v1} rooms - ,Booked {v0} of {v1} rooms - ,تم حجز {v0} من {v1} غرف: ,Se reservaron {v0} de {v1} habitaciones: ,Reservado {v0} de {v1} quartos - ,已订 {v0}/{v1} 间 - ,components/BookingDialog.tsx,v0 v1,translated
 Booked by,Booked by,الحجز بواسطة,Reservado por,Reservado por,预订人,screens/RegistrationCard.tsx; screens/ReservationDetail.tsx,,translated
 Booked elsewhere,Booked elsewhere,حجز في مكان آخر,Reservó en otro alojamiento,Reservado em outro lugar,已在别处预订,,,translated
@@ -1872,7 +1873,7 @@ Contact name,Contact name,اسم جهة الاتصال,Nombre de contacto,Nome d
 Contact phone,Contact phone,هاتف جهة الاتصال,Teléfono de contacto,Telefone de contato,联系电话,,,translated
 Contact us for a quote,Contact us for a quote,تواصل معنا للحصول على عرض سعر,Solicite una cotización,Fale conosco para um orçamento,联系我们获取报价,screens/Marketplace.tsx,,translated
 Continue,Continue,متابعة,Continuar,Continuar,继续,components/CheckInDialog.tsx; components/StepFlow.tsx; screens/PublicBooking.tsx; screens/Setup.tsx,,translated
-Continue to check-in,Continue to check-in,تابع إلى تسجيل الوصول,Continuar con el registro de entrada,Continuar o check-in,继续入住,components/BookingDialog.tsx,,translated
+Continue to check-in,Continue to check-in,تابع إلى تسجيل الوصول,Continuar con el registro de entrada,Continuar o check-in,继续入住,components/BookingDialog.tsx; components/newBooking/NewBookingFooter.tsx,,translated
 Continue without deposit,Continue without deposit,المتابعة بدون عربون,Continuar sin depósito de garantía,Continuar sem depósito,不收押金继续,components/CheckInDialog.tsx,,translated
 Contract,Contract,العقد,Contrato,Contrato,合同,,,translated
 Contract signed on,Contract signed on,تاريخ توقيع العقد,Fecha de firma del contrato,Contrato assinado em,合同签署于,screens/BanquetFunction.tsx,,translated
@@ -1914,6 +1915,7 @@ Could not load reports.,Could not load reports.,تعذر تحميل التقار
 Could not load the rates.,Could not load the rates.,تعذّر تحميل الأسعار.,No se pudieron cargar las tarifas.,Não foi possível carregar as taxas.,无法加载价格。,components/RateOptions.tsx,,translated
 Could not save,Could not save,تعذّر الحفظ,No se pudo guardar,Não foi possível salvar,无法保存,screens/RegistrationCard.tsx,,translated
 Couldn't check that code.,Couldn't check that code.,تعذّر التحقق من هذا الرمز.,No se pudo validar ese código.,Não foi possível verificar esse código.,无法核对该代码。,,,translated
+"Couldn't check your till, so money can't be taken now.","Couldn't check your till, so money can't be taken now.",,,,,components/newBooking/steps/SourcePaymentStep.tsx,,needs_translation
 Couldn't get the price.,Couldn't get the price.,,,,,components/newBooking/steps/RateStep.tsx,,needs_translation
 Couldn't open that conversation.,Couldn't open that conversation.,تعذّر فتح هذه المحادثة.,No se pudo abrir esa conversación.,Não foi possível abrir essa conversa.,无法打开该对话。,screens/Assistant.tsx,,translated
 Couldn't reach the help assistant - check the AI key in Settings.,Couldn't reach the help assistant - check the AI key in Settings.,تعذّر الوصول إلى مساعد المساعدة، تحقق من مفتاح الذكاء الاصطناعي في الإعدادات.,No se pudo contactar al asistente de ayuda. Revise la clave de IA en Configuración.,Não foi possível acessar o assistente de ajuda. Verifique a chave AI em Configurações.,无法连接帮助助手 - 请检查设置中的 AI 密钥。,components/HelpPanel.tsx,,translated
@@ -2355,6 +2357,7 @@ Enter the amount received.,Enter the amount received.,أدخل المبلغ ال
 Enter the amount to collect.,Enter the amount to collect.,,,,,components/newBooking/steps/SourcePaymentStep.tsx,,needs_translation
 "Enter the email or username for your Kamra account. If it is registered, we will send a reset link.","Enter the email or username for your Kamra account. If it is registered, we will send a reset link.",أدخل البريد أو اسم المستخدم لحسابك في كامرا. إن كان مسجلاً سنرسل رابط إعادة التعيين.,"Introduce el correo o usuario de tu cuenta Kamra. Si está registrado, te enviaremos un enlace para restablecerla.","Digite o e-mail ou usuário da sua conta Kamra. Se estiver registado, enviaremos um link para redefinir.",输入 Kamra 账号的邮箱或用户名。若已注册，我们将发送重置链接。,screens/Login.tsx,,translated
 Enter the guest's name.,Enter the guest's name.,,,,,components/newBooking/steps/GuestStep.tsx,,needs_translation
+Enter the guest's phone number.,Enter the guest's phone number.,,,,,components/newBooking/steps/GuestStep.tsx,,needs_translation
 "Enter this pairing code in the app. It works once, for 10 minutes.","Enter this pairing code in the app. It works once, for 10 minutes.",أدخل رمز الربط هذا في التطبيق. يعمل مرة واحدة لمدة 10 دقائق.,"Introduce este código de vinculación en la aplicación. Funciona una sola vez, durante 10 minutos.","Digite este código de pareamento no aplicativo. Ele funciona uma vez, por 10 minutos.",在应用中输入此配对码。仅可使用一次，有效期 10 分钟。,components/ConnectApp.tsx,,translated
 "Enter your current password, then the new one twice.","Enter your current password, then the new one twice.",أدخل كلمة المرور الحالية ثم الجديدة مرتين.,Introduce tu contraseña actual y la nueva dos veces.,Introduza a senha atual e a nova duas vezes.,输入当前密码，再输入两次新密码。,screens/UpdatePassword.tsx,,translated
 Enter your PIN to continue,Enter your PIN to continue,أدخل رمزك للمتابعة,Ingrese su PIN para continuar,Digite seu PIN para continuar,输入 PIN 继续,components/PinPad.tsx,,translated
@@ -2573,7 +2576,7 @@ Finish every step to book.,Finish every step to book.,,,,,components/newBooking/
 Finish setting up,Finish setting up,إكمال الإعداد,Finalizar la configuración,Concluir a configuração,完成初始化,screens/FinishSetup.tsx,,translated
 Finish setting up: {done} of {total} done.,Finish setting up: {done} of {total} done.,أكمل الإعداد: {done} من {total} مكتملة.,Complete la configuración: {done} de {total} pasos completados.,Conclua a configuração: {done} de {total} concluído.,完成初始化：已完成 {done}/{total}。,components/SetupNag.tsx,done total,translated
 Finish setup,Finish setup,إكمال الإعداد,Completar configuración,Concluir configuração,完成初始化,,,translated
-"Finish the phone number, or clear it.","Finish the phone number, or clear it.",,,,,components/newBooking/steps/GuestStep.tsx,,needs_translation
+Finish the phone number.,Finish the phone number.,,,,,components/newBooking/steps/GuestStep.tsx,,needs_translation
 Finish the required steps first.,Finish the required steps first.,أكمل الخطوات المطلوبة أولا.,Primero complete los pasos requeridos.,Conclua as etapas necessárias primeiro.,请先完成必填步骤。,,,translated
 Finish the steps above first.,Finish the steps above first.,أكمل الخطوات السابقة أولًا.,Primero complete los pasos anteriores.,Conclua as etapas acima primeiro.,请先完成上方步骤。,,,translated
 Finish these check-in steps first: {v0}.,Finish these check-in steps first: {v0}.,أكمل خطوات تسجيل الوصول هذه أولا: {v0}.,Complete primero estos pasos de llegada: {v0}.,Conclua estas etapas de check-in primeiro: {v0}.,请先完成这些入住步骤：{v0}。,,v0,translated
@@ -4032,7 +4035,7 @@ Not costed,Not costed,لم تُحسب التكلفة,Sin costo calculado,Não cu
 Not counted yet,Not counted yet,لم يُجرد بعد,Aún sin recuento,Ainda não contado,尚未盘点,,,translated
 not done,not done,لم تنجز,sin completar,não feito,未完成,components/CheckInDialog.tsx,,translated
 Not due,Not due,غير مستحق,Por vencer,Não devido,未到期,screens/Receivables.tsx,,translated
-"Not every room was booked, so no payment was taken.","Not every room was booked, so no payment was taken.",,,,,components/newBooking/submitGroup.ts,,needs_translation
+"Not every room was booked, so no payment was taken.","Not every room was booked, so no payment was taken.",,,,,components/newBooking/NewBookingFooter.tsx,,needs_translation
 Not fired,Not fired,لم يُرسل,Sin enviar a preparación,Não demitido,未发送,,,translated
 "Not included: payroll, rent and other costs that are not entered as supplier bills, and extras guests may still spend.","Not included: payroll, rent and other costs that are not entered as supplier bills, and extras guests may still spend.",غير مشمول: الرواتب والإيجار والتكاليف الأخرى غير المدخلة كفواتير موردين، والإضافات التي قد ينفقها النزلاء.,"No incluye: nómina, alquiler y otros costos que no se registran como facturas de proveedores, ni los extras que los huéspedes aún puedan gastar.","Não inclui: folha de pagamento, aluguel e custos não lançados como faturas de fornecedores, nem consumos extras futuros dos hóspedes.",不含：人工、租金及未以供应商账单录入的其他成本，以及客人后续可能产生的额外消费。,screens/CashForecast.tsx,,translated
 Not listed? Add it under Companies first. Opening an account puts the company on credit.,Not listed? Add it under Companies first. Opening an account puts the company on credit.,غير مدرجة؟ أضفها أولًا في الشركات. فتح حساب يجعل الشركة بالآجل.,¿No aparece? Agrégala primero en Empresas. Abrir una cuenta pone a la empresa a crédito.,Não aparece? Adicione primeiro em Empresas. Abrir uma conta coloca a empresa a crédito.,未列出？请先在「公司」中添加。开户即为该公司开通赊账。,screens/Receivables.tsx,,translated
@@ -6212,7 +6215,6 @@ This room is in service.,This room is in service.,هذه الغرفة في ال�
 "This sets currency {currency}, time zone {tz}, and {tax} invoices.","This sets currency {currency}, time zone {tz}, and {tax} invoices.",يحدد هذا العملة {currency} والمنطقة الزمنية {tz} وفواتير {tax}.,"Configura la moneda {currency}, la zona horaria {tz} y las facturas con {tax}.","Isso define faturas de moeda {currency}, fuso horário {tz} e {tax}.",将设定货币 {currency}、时区 {tz} 与 {tax} 发票。,screens/Setup.tsx,currency tz tax,translated
 "This stay is {v0}, so there is nothing to check out.","This stay is {v0}, so there is nothing to check out.",حالة هذه الإقامة {v0}، فلا توجد مغادرة لتسجيلها.,Esta estancia está en estado {v0}; no hay una salida que registrar.,"Esta estadia é {v0}, portanto não há nada para fazer check-out.",此住店为 {v0}，无需退房。,,v0,translated
 This step is not finished yet.,This step is not finished yet.,لم تكتمل هذه الخطوة بعد.,Este paso aún no está completo.,Esta etapa ainda não foi concluída.,此步骤尚未完成。,,,translated
-This step isn't available yet.,This step isn't available yet.,,,,,components/newBooking/steps/placeholder.tsx,,needs_translation
 This step needs the AI. Add an AI key in Settings → AI assistant.,This step needs the AI. Add an AI key in Settings → AI assistant.,,,,此步骤需要 AI。请在设置 → AI 助手中添加密钥。,screens/Assistant.tsx,,needs_translation
 This type is full tonight - try another room type.,This type is full tonight - try another room type.,هذا النوع ممتلئ الليلة - جرّب نوع غرفة آخر.,No hay disponibilidad de este tipo de habitación para esta noche. Pruebe con otro tipo.,Este tipo está lotado esta noite - tente outro tipo de quarto.,该房型今晚已满 - 请尝试其他房型。,components/BookingDialog.tsx,,translated
 This year,This year,هذه السنة,Este año,Este ano,本年,screens/Dashboard.tsx,,translated
@@ -6346,7 +6348,7 @@ TRIP CONFIRMATION,TRIP CONFIRMATION,تأكيد الرحلة,CONFIRMACIÓN DEL VI
 TripAdvisor,TripAdvisor,TripAdvisor,Tripadvisor,TripAdvisor,TripAdvisor,screens/PublicBooking.tsx,,translated
 TripAdvisor URL,TripAdvisor URL,عنوان URL لـ TripAdvisor,URL de TripAdvisor,URL do TripAdvisor,TripAdvisor 链接,screens/BookingEngine.tsx,,translated
 Trips,Trips,الرحلات,Viajes,Viagens,行程,screens/CRS.tsx,,translated
-Try again,Try again,حاول مجددًا,Intentar de nuevo,Tentar novamente,重试,components/ErrorBoundary.tsx; components/newBooking/steps/RateStep.tsx; screens/Assistant.tsx; screens/PublicBooking.tsx,,translated
+Try again,Try again,حاول مجددًا,Intentar de nuevo,Tentar novamente,重试,components/ErrorBoundary.tsx; components/newBooking/steps/RateStep.tsx; components/newBooking/steps/SourcePaymentStep.tsx; screens/Assistant.tsx; screens/PublicBooking.tsx,,translated
 "Try again, or reload the page if it keeps happening.","Try again, or reload the page if it keeps happening.",حاول مرة أخرى، أو أعد تحميل الصفحة إذا استمرت المشكلة.,Inténtelo de nuevo o recargue la página si sigue ocurriendo.,Tente novamente ou recarregue a página se continuar acontecendo.,请重试；若持续发生请重新加载页面。,components/ErrorBoundary.tsx,,translated
 Try other dates,Try other dates,جرّب تواريخ أخرى,Probar otras fechas,Experimentar outras datas,尝试其他日期,screens/PublicBooking.tsx,,translated
 "Try other dates, or fewer guests per room.","Try other dates, or fewer guests per room.",جرّب تواريخ أخرى، أو عددًا أقل من الضيوف في الغرفة.,Pruebe otras fechas o menos huéspedes por habitación.,Experimente outras datas ou menos hóspedes por quarto.,请尝试其他日期，或减少每间客房的客人数。,screens/PublicBooking.tsx,,translated
