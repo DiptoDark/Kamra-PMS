@@ -56,8 +56,12 @@ export interface BookingDone {
   /** money taken with the booking */
   paid: number
   credit_warning?: CreditWarning
-  /** the booking was made but the payment failed: the message to show */
+  /** the booking was made but the payment failed: Kamra's message */
   payment_error?: string
+  /** the booking was made and the money deliberately not taken; the footer
+   *  words why when it shows it: "rooms_skipped" = a Group booking Kamra
+   *  booked only in part, so the total no longer matched (#8) */
+  payment_withheld?: "rooms_skipped"
   /** a Group booking's rooms Kamra didn't book, and why (#8) */
   skipped?: { room_type: string; reason: string }[]
   /** Book and check in now: open Kamra's CheckInDialog for `reservation` next */

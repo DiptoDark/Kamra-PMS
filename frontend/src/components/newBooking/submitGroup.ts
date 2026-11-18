@@ -12,7 +12,6 @@
     as for one room; it isn't taken when any room was skipped, since the
     amount was the total for every room. */
 
-import { t } from "../../lib/i18n"
 import { createGroupBooking } from "./api"
 import { isReasonRefusal } from "./refusalReasons"
 import { amountNow, extraRows, isGroup, payingCompany } from "./rules"
@@ -64,6 +63,10 @@ export const bookGroup: SubmitPath = {
       ...(company ? { company } : {}),
     })
     const skipped = r.skipped ?? []
+    // Kamra throws when no room could be booked; should it answer with none
+    // anyway, there is no booking to report: refuse with its reasons
+    if (!r.created?.length)
+      throw new Error(skipped.map((s) => `${s.room_type}: ${s.reason}`).join(" "))
     const done: BookingDone = {
       reservation: r.created[0],
       room: null,
@@ -73,8 +76,7 @@ export const bookGroup: SubmitPath = {
       skipped,
     }
     if (amount <= 0) return done
-    if (skipped.length > 0)
-      return { ...done, payment_error: t("Not every room was booked, so no payment was taken.") }
+    if (skipped.length > 0) return { ...done, payment_withheld: "rooms_skipped" }
     return takeAdvance(done, draft, amount, ctx)
   },
 }

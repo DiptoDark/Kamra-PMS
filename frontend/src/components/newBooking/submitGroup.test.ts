@@ -173,7 +173,25 @@ describe("bookGroup", () => {
     expect(done.skipped).toEqual([{ room_type: "Suite", reason: "Suite sleeps 2." }])
     expect(done.reservations).toEqual(["RES-1"])
     expect(done.paid).toBe(0)
-    expect(done.payment_error).toBe("Not every room was booked, so no payment was taken.")
+    // the reason is data; the footer words it at render time (B5)
+    expect(done.payment_error).toBeUndefined()
+    expect(done.payment_withheld).toBe("rooms_skipped")
+  })
+
+  it("refuses with Kamra's reasons when it booked no room at all (B4)", async () => {
+    api.call.mockResolvedValue({
+      group_booking: "GRP-1",
+      created: [],
+      skipped: [
+        { room_type: "Deluxe", reason: "No Deluxe room is free." },
+        { room_type: "Suite", reason: "Suite sleeps 2." },
+      ],
+    })
+
+    await expect(bookGroup.run(draft({ pay: "now" }), ctx())).rejects.toThrow(
+      "Deluxe: No Deluxe room is free. Suite: Suite sleeps 2.",
+    )
+    expect(api.call).toHaveBeenCalledTimes(1)
   })
 
   it("keeps the booking when the payment fails, and says why", async () => {

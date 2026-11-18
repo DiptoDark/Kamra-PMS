@@ -67,4 +67,19 @@ describe("NewBookingFooter after a Group booking", () => {
     await user.click(screen.getByRole("button", { name: "Done" }))
     expect(onClose).toHaveBeenCalled()
   })
+
+  it("says no payment was taken when Kamra skipped a room", async () => {
+    const user = userEvent.setup()
+    const { onClose } = open({
+      ...group,
+      reservations: ["RES-1"],
+      skipped: [{ room_type: "Suite", reason: "Suite sleeps 2." }],
+      payment_withheld: "rooms_skipped",
+    })
+
+    await user.click(screen.getByRole("button", { name: "Book" }))
+
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole("alert")).toHaveTextContent("Not every room was booked, so no payment was taken.")
+  })
 })

@@ -62,7 +62,7 @@ export function NewBookingFooter(
     try {
       const result = await path.run(draft, { keys, overrides: sent, ensureUnlocked })
       props.onBooked?.(result)
-      if (result.payment_error || result.skipped?.length) setDone(result)
+      if (result.payment_error || result.payment_withheld || result.skipped?.length) setDone(result)
       else if (result.check_in && props.onCheckIn) props.onCheckIn(result.reservation)
       else props.onClose()
     } catch (e) {
@@ -95,6 +95,12 @@ export function NewBookingFooter(
                 {t("Booked {reservation}, but the payment wasn't recorded.", { reservation: done.reservation })}
               </p>
               <p>{done.payment_error}</p>
+              <p>{t("Take the payment from the booking.")}</p>
+            </>
+          )}
+          {done.payment_withheld === "rooms_skipped" && (
+            <>
+              <p>{t("Not every room was booked, so no payment was taken.")}</p>
               <p>{t("Take the payment from the booking.")}</p>
             </>
           )}
