@@ -10,6 +10,7 @@ import { Check, Lock } from "lucide-react"
 import type { BookingInitial } from "../../AppShell"
 import { useT } from "../../lib/i18n"
 import { cn } from "../../lib/utils"
+import CheckInDialog from "../CheckInDialog"
 import { Sheet } from "../ui/sheet"
 import { NewBookingFooter } from "./NewBookingFooter"
 import { BOOKING_STEPS } from "./steps"
@@ -47,6 +48,12 @@ export function NewBookingDrawer(props: {
   const [draft, setDraft] = useState(() => initialDraft(steps, props.initial))
   const update: DraftUpdate = (change) => setDraft((d) => change(d))
   const states = useMemo(() => stepStates(steps, draft), [steps, draft])
+  // Book and check in now (D5): the drawer gives way to Kamra's check-in
+  // for the booking just made; closing that closes the whole flow
+  const [checkIn, setCheckIn] = useState<string | null>(null)
+
+  if (checkIn)
+    return <CheckInDialog reservation={checkIn} onDone={props.onClose} onClose={props.onClose} />
 
   return (
     <Sheet
@@ -61,6 +68,7 @@ export function NewBookingDrawer(props: {
           ready={states.every((s) => s.complete)}
           onClose={props.onClose}
           onBooked={props.onBooked}
+          onCheckIn={setCheckIn}
         />
       }
     >

@@ -66,6 +66,20 @@ describe("Room type & room step", () => {
       room_type: "Deluxe",
       check_in_date: "2026-11-18",
       check_out_date: "2026-11-19",
+      // checking in today: a room whose guest hasn't checked out isn't free yet
+      ready_now: 1,
+    })
+  })
+
+  it("counts rooms still occupied today as free for a later check-in", async () => {
+    render(<NewBookingDrawer initial={{ date: "2026-11-20" }} onClose={() => {}} />)
+
+    await within(roomStep()).findByRole("button", { name: /Standard/ })
+    expect(call).toHaveBeenCalledWith("kamra.api.available_rooms", {
+      property: "Test Hotel",
+      room_type: "Standard",
+      check_in_date: "2026-11-20",
+      check_out_date: "2026-11-21",
     })
   })
 

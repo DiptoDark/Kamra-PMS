@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest"
-import { bookOneRoom, newSubmitKeys, refusalOf } from "./submit"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { bookAndCheckIn, bookOneRoom, newSubmitKeys, refusalOf } from "./submit"
 import type { NewBookingDraft } from "./types"
 
 const api = vi.hoisted(() => ({ call: vi.fn() }))
@@ -99,6 +99,88 @@ describe("bookOneRoom", () => {
 
     expect(ensureUnlocked).not.toHaveBeenCalled()
     expect(api.call).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("bookAndCheckIn", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date(2026, 10, 18, 10, 0))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  /** a stay checking in today (18 Nov 2026) */
+  const today = (payment: Partial<NewBookingDraft["payment"]> = {}): NewBookingDraft => {
+    const d = draft({ source: null, ...payment })
+    return { ...d, stay: { ...d.stay, check_in_date: "2026-11-18", check_out_date: "2026-11-20" } }
+  }
+
+  it("books through walk_in with check-in deferred, unlocking the PIN first when money is taken", async () => {
+    const order: string[] = []
+    api.call.mockImplementation(async (method: string) => {
+      order.push(method)
+      return { reservation: "RES-11", room: "R-204", room_number: "204", folio: "F-1", checked_in: 0, paid: 3000 }
+    })
+    const ensureUnlocked = vi.fn(async () => {
+      order.push("unlock")
+    })
+    const keys = newSubmitKeys()
+
+    const done = await bookAndCheckIn.run(
+      today({ payer: "company", company: "ACME", company_name: "Acme Ltd", pay: "now" }),
+      {
+        keys,
+        // walk_in takes no over-capacity reason (#15): it must not be sent
+        overrides: { blacklist_override_reason: "Owner agreed", over_capacity_reason: "Extra bed" },
+        ensureUnlocked,
+      },
+    )
+
+    expect(order).toEqual(["unlock", "kamra.api.walk_in"])
+    expect(api.call).toHaveBeenCalledWith("kamra.api.walk_in", {
+      property: "Test Hotel",
+      room_type: "Deluxe",
+      room: "R-204",
+      check_out_date: "2026-11-20",
+      adults: 2,
+      children: 1,
+      guest_name: "Rahim Uddin",
+      guest: "G-0007",
+      company: "ACME",
+      payment_mode: "Card",
+      payment_amount: 3000,
+      blacklist_override_reason: "Owner agreed",
+      idempotency_key: keys.booking,
+      defer_check_in: 1,
+    })
+    expect(done).toEqual({
+      reservation: "RES-11",
+      room: "R-204",
+      reservations: ["RES-11"],
+      paid: 3000,
+      check_in: true,
+    })
+  })
+
+  it("sends no payment mode and skips the PIN when paying on arrival", async () => {
+    api.call.mockResolvedValue({ reservation: "RES-12", room: "R-204", checked_in: 0, paid: 0 })
+    const ensureUnlocked = vi.fn(async () => {})
+
+    await bookAndCheckIn.run(today({ pay: "arrival" }), { keys: newSubmitKeys(), overrides: {}, ensureUnlocked })
+
+    expect(ensureUnlocked).not.toHaveBeenCalled()
+    const params = api.call.mock.calls[0][1]
+    expect(params).toMatchObject({ payment_amount: 0, defer_check_in: 1 })
+    expect(params).not.toHaveProperty("payment_mode")
+  })
+
+  it("is offered only when check-in is today, and needs a room number", () => {
+    expect(bookAndCheckIn.applies(today())).toBe(true)
+    expect(bookAndCheckIn.applies(draft())).toBe(false)
+    expect(bookAndCheckIn.disabledReason?.(today())).toBeNull()
+    const noRoom = today()
+    noRoom.room = { ...noRoom.room, room: "" }
+    expect(bookAndCheckIn.disabledReason?.(noRoom)).toBe("Pick a room number to check in now.")
   })
 })
 

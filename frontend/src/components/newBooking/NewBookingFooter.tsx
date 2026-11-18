@@ -28,6 +28,8 @@ export function NewBookingFooter(
     ready: boolean
     onClose: () => void
     onBooked?: (done: BookingDone) => void
+    /** the booking was made and wants checking in now (BookingDone.check_in) */
+    onCheckIn?: (reservation: string) => void
     /** defaults to SUBMIT_PATHS */
     paths?: SubmitPath[]
   },
@@ -42,6 +44,9 @@ export function NewBookingFooter(
   const [refusal, setRefusal] = useState<Refusal | null>(null)
   const [done, setDone] = useState<BookingDone | null>(null)
   const paths = (props.paths ?? SUBMIT_PATHS).filter((p) => p.applies(draft))
+  const blocked = props.ready
+    ? paths.map((p) => p.disabledReason?.(draft)).filter((r): r is string => !!r)
+    : []
 
   async function submit(path: SubmitPath) {
     setBusy(path.key)
@@ -50,6 +55,7 @@ export function NewBookingFooter(
       const result = await path.run(draft, { keys, overrides, ensureUnlocked })
       props.onBooked?.(result)
       if (result.payment_error) setDone(result)
+      else if (result.check_in && props.onCheckIn) props.onCheckIn(result.reservation)
       else props.onClose()
     } catch (e) {
       setRefusal(refusalOf(e))
@@ -89,6 +95,11 @@ export function NewBookingFooter(
       {!props.ready && (
         <p className="text-end text-xs text-zinc-500">{t("Finish every step to book.")}</p>
       )}
+      {blocked.map((r) => (
+        <p key={r} className="text-end text-xs text-zinc-500">
+          {t(r)}
+        </p>
+      ))}
       <div className="flex items-center justify-end gap-2">
         <Button variant="outline" className={BIG} onClick={props.onClose} disabled={busy !== null}>
           {t("Cancel")}
@@ -97,7 +108,7 @@ export function NewBookingFooter(
           <Button
             key={p.key}
             className={BIG}
-            disabled={!props.ready || busy !== null}
+            disabled={!props.ready || busy !== null || !!p.disabledReason?.(draft)}
             aria-busy={busy === p.key || undefined}
             onClick={() => void submit(p)}
           >

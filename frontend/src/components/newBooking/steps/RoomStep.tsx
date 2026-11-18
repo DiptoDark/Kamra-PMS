@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react"
 import { call, getBookingOptions, getCurrentProperty, type BookingOptions } from "../../../lib/api"
 import { useT } from "../../../lib/i18n"
+import { todayPlus } from "../../../lib/stay"
 import { cn } from "../../../lib/utils"
 import { Field, inputCls } from "../fields"
 import type { BookingStep, StayDraft, StepProps } from "../types"
@@ -85,6 +86,8 @@ function RoomBody({ draft, update }: StepProps) {
           room_type: rt.name,
           check_in_date,
           check_out_date,
+          // checking in today: leave out rooms whose guest is still in them
+          ...(check_in_date === todayPlus(0) ? { ready_now: 1 } : {}),
         })
           .catch(() => [] as FreeRoom[])
           .then((rooms) => [rt.name, cleanFirst(rooms)] as const),
