@@ -333,11 +333,12 @@ export const sourcePaymentStep: BookingStep = {
   key: "payment",
   label: "Source & payment",
   lockedHint: "Check the rate first.",
-  init: (draft) => ({
+  init: (draft, initial) => ({
     ...draft,
     payment: {
-      source: null,
-      pay: null,
+      // the walk-in form (AgentGuide): a walk-in, paying now
+      source: initial.walkIn ? "Walk-in" : null,
+      pay: initial.walkIn ? "now" : null,
       amount: null,
       mode: "",
       payer: "guest",

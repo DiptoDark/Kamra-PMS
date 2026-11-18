@@ -106,6 +106,51 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+describe("the hotel's today is Kamra's business date (B6)", () => {
+  it("checks in on the business date when the browser's calendar is a day behind", async () => {
+    // the clerk's browser says 17 Nov 23:00; the hotel is already on the 18th
+    vi.setSystemTime(new Date(2026, 10, 17, 23, 0))
+    server["kamra.cashier.my_till"] = () => ({
+      property: "Test Hotel",
+      required: true,
+      open: true,
+      business_date: "2026-11-18",
+    })
+    open()
+
+    const checkIn = screen.getByLabelText("Check-in")
+    await waitFor(() => expect(checkIn).toHaveValue("2026-11-18"))
+    expect(checkIn).toHaveAttribute("min", "2026-11-18")
+    expect(screen.getByLabelText("Check-out")).toHaveValue("2026-11-20")
+    const step = within(screen.getByRole("region", { name: "Source & payment" }))
+    expect(await step.findByRole("radio", { name: "Walk-in" })).toBeChecked()
+    expect(step.getByRole("radio", { name: "Collect now" })).toBeChecked()
+    expect(await screen.findByRole("button", { name: "Book and check in now" })).toBeInTheDocument()
+  })
+
+  it("keeps a check-in date the desk opened the drawer on", async () => {
+    server["kamra.cashier.my_till"] = () => ({ property: "Test Hotel", required: true, open: true, business_date: "2026-11-19" })
+    open({ date: "2026-11-25", stays: 2 })
+
+    await waitFor(() => expect(screen.getByLabelText("Check-in")).toHaveAttribute("min", "2026-11-19"))
+    expect(screen.getByLabelText("Check-in")).toHaveValue("2026-11-25")
+  })
+})
+
+describe("the walk-in form (AgentGuide, B9)", () => {
+  it("opens on the business date with Walk-in and Collect now picked", async () => {
+    server["kamra.cashier.my_till"] = () => ({ property: "Test Hotel", required: true, open: true, business_date: "2026-11-18" })
+    open({ walkIn: true, date: "2026-11-25", stays: 2, room: "R-204" })
+
+    expect(screen.getByLabelText("Check-in")).toHaveValue("2026-11-18")
+    expect(screen.getByLabelText("Check-out")).toHaveValue("2026-11-20")
+    const step = within(screen.getByRole("region", { name: "Source & payment" }))
+    expect(await step.findByRole("radio", { name: "Walk-in" })).toBeChecked()
+    expect(step.getByRole("radio", { name: "Collect now" })).toBeChecked()
+    expect(await screen.findByRole("button", { name: "Book and check in now" })).toBeInTheDocument()
+  })
+})
+
 describe("Book and check in now", () => {
   it("books the walk-in with check-in deferred, then hands over to Kamra's check-in", async () => {
     const user = userEvent.setup()

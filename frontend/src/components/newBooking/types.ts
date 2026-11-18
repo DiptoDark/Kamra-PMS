@@ -33,6 +33,10 @@ export interface NewBookingDraft {
    *  kamra.cashier.my_till answers; unset/null = use the local date
    *  (rules.businessToday) */
   businessDate?: string | null
+  /** check-in was opened on "today" (no date given, or the walk-in form)
+   *  and the desk hasn't changed it: it moves to the business date when
+   *  that answers */
+  checkInFollowsToday?: boolean
 }
 
 export type DraftUpdate = (change: (draft: NewBookingDraft) => NewBookingDraft) => void
