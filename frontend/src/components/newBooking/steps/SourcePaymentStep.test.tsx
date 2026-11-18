@@ -120,6 +120,30 @@ afterEach(() => {
 })
 
 describe("Source & payment step", () => {
+  it("says under Booking source that Kamra records a Group booking's rooms as Direct (#14)", async () => {
+    const twoRooms: BookingStep = {
+      ...roomDone,
+      init: (d, initial) => ({
+        ...roomDone.init!(d, initial),
+        moreRooms: {
+          rows: [{ id: "r1", room_type: "Deluxe", room_type_name: "Deluxe King", room: "", adults: 1, children: 0, rate: { quote: null, quotedFor: "" } }],
+          free: {},
+          freeFor: "",
+        },
+      }),
+    }
+    render(<NewBookingDrawer initial={{ stays: 2 }} onClose={vi.fn()} steps={[datesGuestsStep, twoRooms, guestDone, rateStep, sourcePaymentStep]} />)
+
+    expect(await step().findByText("Kamra records a Group booking's rooms as Direct for now, whatever is picked here.")).toBeInTheDocument()
+  })
+
+  it("adds no group note to a one-room booking", async () => {
+    open()
+
+    await step().findByRole("radio", { name: "Walk-in" })
+    expect(step().queryByText(/Group booking's rooms as Direct/)).toBeNull()
+  })
+
   it("preselects Walk-in when check-in is today, and says why", async () => {
     open()
 

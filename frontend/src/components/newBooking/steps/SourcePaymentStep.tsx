@@ -16,6 +16,7 @@ import TillCard, { type TillState } from "../../TillCard"
 import { Button } from "../../ui/button"
 import { Field, inputCls } from "../fields"
 import type { BookingStep, NewBookingDraft, StepProps } from "../types"
+import { isGroup } from "./MoreRooms"
 import { quoteTotal } from "./RateStep"
 
 /** Kamra's create_booking `source` values the desk can pick (D3). */
@@ -227,6 +228,12 @@ function SourcePaymentBody({ draft, update }: StepProps) {
                   source: t(sourceLabel),
                 })}
         </p>
+        {/* create_group_booking doesn't pass the source on (#14) */}
+        {isGroup(draft) && (
+          <p className="mt-1 text-xs text-amber-700">
+            {t("Kamra records a Group booking's rooms as Direct for now, whatever is picked here.")}
+          </p>
+        )}
       </div>
 
       <div className="flex flex-col gap-3">

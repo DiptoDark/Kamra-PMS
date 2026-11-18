@@ -14,6 +14,7 @@
 
 import { call, getCurrentProperty, serverError } from "../../lib/api"
 import { t } from "../../lib/i18n"
+import { isReasonRefusal } from "./refusalReasons"
 import { extraRows, isGroup } from "./steps/MoreRooms"
 import { amountNow, payingCompany } from "./steps/SourcePaymentStep"
 import type { BookingDone, SubmitPath } from "./submit"
@@ -38,10 +39,16 @@ export function groupRooms(draft: NewBookingDraft) {
   ]
 }
 
+/** English advice for a group room Kamra refused for a D6 reason. */
+export const BOOK_ALONE =
+  "Book a skipped room on its own to give a reason: groups can't take one yet."
+
 export const bookGroup: SubmitPath = {
   key: "group",
   label: "Book",
   applies: isGroup,
+  // no override on groups (#14): a room can be booked on its own with a reason
+  refusalHint: (r) => (isReasonRefusal(r.message) ? BOOK_ALONE : null),
   run: async (draft, ctx) => {
     const amount = amountNow(draft)
     if (amount > 0) await ctx.ensureUnlocked()

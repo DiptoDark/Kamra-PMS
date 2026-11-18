@@ -1,7 +1,8 @@
 /*  The drawer's pinned footer: each step's summary line above the buttons.
     Buttons come from submit.ts (one per applying SubmitPath) and stay
     disabled until every step is complete. A press runs the path; Kamra's
-    refusal is shown above the buttons, and a booking made reports back
+    refusal is shown above the buttons (with a reason field when the desk
+    may book past it, refusalReasons.ts), and a booking made reports back
     through onBooked and closes the drawer (or stays open to say the
     payment didn't go through). */
 
@@ -9,6 +10,9 @@ import { useState } from "react"
 import { useCashierAuth } from "../../lib/cashierAuth"
 import { useT } from "../../lib/i18n"
 import { Button } from "../ui/button"
+import { Field, inputCls } from "./fields"
+import { isReasonRefusal, reasonToAsk, type ReasonAsk } from "./refusalReasons"
+import { BOOK_ALONE } from "./submitGroup"
 import {
   newSubmitKeys,
   refusalOf,
@@ -38,31 +42,47 @@ export function NewBookingFooter(
   const { draft, update } = props
   const { ensureUnlocked } = useCashierAuth()
   const [keys] = useState(newSubmitKeys)
-  // reasons for a refusal Kamra lets the desk override (#10 fills these)
-  const [overrides] = useState<Overrides>({})
+  // reasons given for refusals Kamra lets the desk override (D6), kept for
+  // every later press so a second refusal doesn't drop the first reason
+  const [overrides, setOverrides] = useState<Overrides>({})
   const [busy, setBusy] = useState<string | null>(null)
-  const [refusal, setRefusal] = useState<Refusal | null>(null)
+  const [refused, setRefused] = useState<{ refusal: Refusal; path: SubmitPath; ask: ReasonAsk | null } | null>(
+    null,
+  )
+  const [reason, setReason] = useState("")
   const [done, setDone] = useState<BookingDone | null>(null)
   const paths = (props.paths ?? SUBMIT_PATHS).filter((p) => p.applies(draft))
   const blocked = props.ready
     ? paths.map((p) => p.disabledReason?.(draft)).filter((r): r is string => !!r)
     : []
 
-  async function submit(path: SubmitPath) {
+  async function submit(path: SubmitPath, sent: Overrides = overrides) {
     setBusy(path.key)
-    setRefusal(null)
+    setRefused(null)
     try {
-      const result = await path.run(draft, { keys, overrides, ensureUnlocked })
+      const result = await path.run(draft, { keys, overrides: sent, ensureUnlocked })
       props.onBooked?.(result)
       if (result.payment_error || result.skipped?.length) setDone(result)
       else if (result.check_in && props.onCheckIn) props.onCheckIn(result.reservation)
       else props.onClose()
     } catch (e) {
-      setRefusal(refusalOf(e))
+      const refusal = refusalOf(e)
+      setReason("")
+      setRefused({ refusal, path, ask: reasonToAsk(refusal, path, draft, sent) })
     } finally {
       setBusy(null)
     }
   }
+
+  /** Retry the refused path with the reason, on the same idempotency keys. */
+  function retryWithReason() {
+    if (!refused?.ask) return
+    const sent = { ...overrides, [refused.ask.param]: reason.trim() }
+    setOverrides(sent)
+    void submit(refused.path, sent)
+  }
+
+  const hint = refused && !refused.ask ? refused.path.refusalHint?.(refused.refusal) : null
 
   if (done)
     return (
@@ -92,10 +112,37 @@ export function NewBookingFooter(
       <div className="flex flex-col gap-1 text-sm text-zinc-700" aria-label={t("Summary")}>
         {props.steps.map((s) => (s.Summary ? <s.Summary key={s.key} draft={draft} update={update} /> : null))}
       </div>
-      {refusal && (
-        <p role="alert" className="text-sm text-rose-600">
-          {refusal.message}
-        </p>
+      {refused && (
+        <div role="alert" className="flex flex-col gap-1 text-sm text-rose-600">
+          <p>{refused.refusal.message}</p>
+          {hint && <p className="text-zinc-700">{t(hint)}</p>}
+        </div>
+      )}
+      {refused?.ask && (
+        <form
+          className="flex flex-col gap-2"
+          onSubmit={(e) => {
+            e.preventDefault()
+            retryWithReason()
+          }}
+        >
+          <Field
+            label={t(refused.ask.label)}
+            hint={<span className="mt-1 block text-xs text-zinc-500">{t("Required. Kamra logs it with your name.")}</span>}
+          >
+            <input
+              className={inputCls}
+              value={reason}
+              placeholder={t(refused.ask.placeholder)}
+              onChange={(e) => setReason(e.target.value)}
+            />
+          </Field>
+          <div className="flex justify-end">
+            <Button type="submit" className={BIG} disabled={!reason.trim() || busy !== null}>
+              {t("Book with this reason")}
+            </Button>
+          </div>
+        </form>
       )}
       {!props.ready && (
         <p className="text-end text-xs text-zinc-500">{t("Finish every step to book.")}</p>
@@ -144,6 +191,7 @@ function SkippedRooms({ done }: { done: BookingDone }) {
           <li key={i}>{t("{room_type}: {reason}", { room_type: s.room_type, reason: s.reason })}</li>
         ))}
       </ul>
+      {skipped.some((s) => isReasonRefusal(s.reason)) && <p className="mt-1">{t(BOOK_ALONE)}</p>}
     </div>
   )
 }

@@ -74,6 +74,10 @@ export interface SubmitPath {
   /** English reason the button is shown but can't be pressed yet, or null */
   disabledReason?: (draft: NewBookingDraft) => string | null
   run: (draft: NewBookingDraft, ctx: SubmitContext) => Promise<BookingDone>
+  /** refusals this path can send a reason for and retry (D6, refusalReasons.ts) */
+  overrides?: Refusal["kind"][]
+  /** English advice shown under a refusal this path can't override, or null */
+  refusalHint?: (refusal: Refusal) => string | null
 }
 
 /** The params every booking call shares: stay, guest, source, payer. */
@@ -107,6 +111,7 @@ export const bookOneRoom: SubmitPath = {
   label: "Book",
   // two or more rooms book as a Group booking (submitGroup.ts)
   applies: (draft) => !isGroup(draft),
+  overrides: ["blacklist", "credit", "capacity"],
   run: async (draft, ctx) => {
     const amount = amountNow(draft)
     // the payment isn't all-or-nothing with the booking: unlock first
@@ -153,6 +158,12 @@ export const bookAndCheckIn: SubmitPath = {
   // one room only: walk_in books one, so a Group booking can't check in now
   applies: (draft) => !isGroup(draft) && draft.stay.check_in_date === todayPlus(0),
   disabledReason: (draft) => (draft.room?.room ? null : "Pick a room number to check in now."),
+  // walk_in takes no over-capacity reason (#15)
+  overrides: ["blacklist", "credit"],
+  refusalHint: (r) =>
+    r.kind === "capacity" && r.reasonable
+      ? "Check in now can't record a reason for extra guests. Pick a bigger room type, or use Book to give the reason and check in from the booking."
+      : null,
   run: async (draft, ctx) => {
     const amount = amountNow(draft)
     // walk_in asks for the PIN and an open till before it books anything
@@ -205,6 +216,9 @@ export interface Refusal {
   title: string | null
   exc_type: string | null
   kind: "blacklist" | "credit" | "capacity" | "till" | "pin" | "other"
+  /** Kamra would book past it with a reason: blacklist, credit, and over
+   *  capacity while the room type has extra beds left */
+  reasonable: boolean
 }
 
 export function refusalOf(e: unknown): Refusal {
@@ -240,5 +254,7 @@ export function refusalOf(e: unknown): Refusal {
             : /^PIN_|cashier PIN/.test(text)
               ? "pin"
               : "other"
-  return { message, title, exc_type, kind }
+  const reasonable =
+    kind === "blacklist" || kind === "credit" || (kind === "capacity" && !/can't sleep|Reduce the party/.test(text))
+  return { message, title, exc_type, kind, reasonable }
 }
