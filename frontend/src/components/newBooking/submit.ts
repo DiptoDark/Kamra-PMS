@@ -7,13 +7,14 @@
     a path here instead of touching the footer:
       - Group booking (#8): a path for two or more room rows that calls
         create_group_booking; narrow bookOneRoom.applies to one row.
-      - Book and check in now (#9): a second path calling walk_in.
+      - Book and check in now (#9): bookAndCheckIn, calling walk_in.
     Every path builds its params from bookingParams() and ctx.overrides, so
     a refusal that can be overridden with a reason (#10) is retried by
     calling run again with the reason in ctx.overrides; ctx.keys keeps the
     same idempotency keys across that retry. */
 
 import { call, getCurrentProperty, newIdempotencyKey, serverError } from "../../lib/api"
+import { todayPlus } from "../../lib/stay"
 import { isGroup } from "./steps/MoreRooms"
 import { amountNow, sourceFor } from "./steps/SourcePaymentStep"
 import { bookGroup } from "./submitGroup"
@@ -61,6 +62,8 @@ export interface BookingDone {
   payment_error?: string
   /** a Group booking's rooms Kamra didn't book, and why (#8) */
   skipped?: { room_type: string; reason: string }[]
+  /** Book and check in now: open Kamra's CheckInDialog for `reservation` next */
+  check_in?: boolean
 }
 
 export interface SubmitPath {
@@ -68,6 +71,8 @@ export interface SubmitPath {
   /** English button label, translated where shown */
   label: string
   applies: (draft: NewBookingDraft) => boolean
+  /** English reason the button is shown but can't be pressed yet, or null */
+  disabledReason?: (draft: NewBookingDraft) => string | null
   run: (draft: NewBookingDraft, ctx: SubmitContext) => Promise<BookingDone>
 }
 
@@ -137,8 +142,61 @@ export const bookOneRoom: SubmitPath = {
   },
 }
 
+/** Book and check in now (D5): walk_in with defer_check_in=1 books one room,
+ *  assigns it and takes the money in one all-or-nothing request, leaving
+ *  the booking Confirmed so Kamra's CheckInDialog finishes the check-in
+ *  (BookingDone.check_in). walk_in always checks in today, takes no
+ *  `source` (always Walk-in) and no over-capacity reason (#15). */
+export const bookAndCheckIn: SubmitPath = {
+  key: "walk_in",
+  label: "Book and check in now",
+  // one room only: walk_in books one, so a Group booking can't check in now
+  applies: (draft) => !isGroup(draft) && draft.stay.check_in_date === todayPlus(0),
+  disabledReason: (draft) => (draft.room?.room ? null : "Pick a room number to check in now."),
+  run: async (draft, ctx) => {
+    const amount = amountNow(draft)
+    // walk_in asks for the PIN and an open till before it books anything
+    if (amount > 0) await ctx.ensureUnlocked()
+    const { blacklist_override_reason, credit_override_reason } = ctx.overrides
+    const p = bookingParams(draft)
+    const r = await call<{
+      reservation: string
+      room: string | null
+      checked_in?: number
+      paid?: number
+      credit_warning?: CreditWarning
+    }>("kamra.api.walk_in", {
+      property: p.property,
+      room_type: p.room_type,
+      room: draft.room.room,
+      check_out_date: p.check_out_date,
+      adults: p.adults,
+      children: p.children,
+      guest_name: p.guest_name,
+      ...(p.phone ? { phone: p.phone } : {}),
+      ...(p.guest ? { guest: p.guest } : {}),
+      ...(p.company ? { company: p.company } : {}),
+      ...(amount > 0 ? { payment_mode: draft.payment.mode } : {}),
+      payment_amount: amount,
+      ...withOverrides({ blacklist_override_reason, credit_override_reason }),
+      idempotency_key: ctx.keys.booking,
+      defer_check_in: 1,
+    })
+    return {
+      reservation: r.reservation,
+      room: r.room ?? null,
+      reservations: [r.reservation],
+      paid: r.paid ?? amount,
+      ...(r.credit_warning ? { credit_warning: r.credit_warning } : {}),
+      // an idempotent replay answers without checked_in: check in anyway,
+      // CheckInDialog shows where that booking stands
+      check_in: r.checked_in !== 1,
+    }
+  },
+}
+
 /** The drawer's buttons, in order. */
-export const SUBMIT_PATHS: SubmitPath[] = [bookOneRoom, bookGroup]
+export const SUBMIT_PATHS: SubmitPath[] = [bookOneRoom, bookAndCheckIn, bookGroup]
 
 /** Why Kamra refused, read from the error `call` threw. `kind` sorts the
  *  refusals the desk can act on (D6 reasons, D7 till / PIN). */

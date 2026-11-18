@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
 import type { Quote } from "../../lib/api"
-import { bookOneRoom, newSubmitKeys, SUBMIT_PATHS } from "./submit"
+import { bookAndCheckIn, bookOneRoom, newSubmitKeys, SUBMIT_PATHS } from "./submit"
 import { quoteKey, rowQuoteKey } from "./steps/RateStep"
 import { bookGroup } from "./submitGroup"
 import type { NewBookingDraft } from "./types"
@@ -74,6 +74,17 @@ describe("which button books", () => {
     expect(bookOneRoom.applies(draft())).toBe(false)
     expect(bookGroup.applies(draft())).toBe(true)
     expect(SUBMIT_PATHS).toContain(bookGroup)
+  })
+
+  it("offers Book and check in now for one room only", () => {
+    vi.useFakeTimers({ toFake: ["Date"] })
+    vi.setSystemTime(new Date(2026, 10, 25, 10, 0))
+    try {
+      expect(bookAndCheckIn.applies(draft({}, []))).toBe(true)
+      expect(bookAndCheckIn.applies(draft())).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
