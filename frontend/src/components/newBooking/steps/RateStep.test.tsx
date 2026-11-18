@@ -204,3 +204,99 @@ describe("Rate step", () => {
     expect(summary()).toHaveTextContent("Total 13,440.00")
   })
 })
+
+describe("Rate step with more rooms (Group booking)", () => {
+  // the room step stand-in, now with a second and third room
+  const roomsDone: BookingStep = {
+    ...roomDone,
+    init: (d) => ({
+      ...roomDone.init!(d, {}),
+      moreRooms: {
+        free: {},
+        freeFor: "",
+        rows: [
+          {
+            id: "a", room_type: "Suite", room_type_name: "Suite", room: "", adults: 3, children: 1,
+            rate: { quote: null, quotedFor: "" },
+          },
+          {
+            id: "b", room_type: "Deluxe", room_type_name: "Deluxe King", room: "", adults: 1, children: 0,
+            rate: { quote: null, quotedFor: "" },
+          },
+        ],
+      },
+    }),
+  }
+  const openGroup = () =>
+    render(
+      <NewBookingDrawer
+        initial={{ stays: 2 }}
+        onClose={() => {}}
+        steps={[datesGuestsStep, roomsDone, guestDone, rateStep, next]}
+      />,
+    )
+
+  beforeEach(() => {
+    api.getQuote.mockImplementation(async (p: { room_type: string; adults: number }) =>
+      p.room_type === "Suite"
+        ? quote({ amount_after_tax: 20000 })
+        : quote({ amount_after_tax: p.adults === 1 ? 11200 : 12000 }),
+    )
+  })
+
+  it("prices each room on its own guests and shows each room's price and the total", async () => {
+    openGroup()
+
+    const body = await rate().findByLabelText("Price")
+    await waitFor(() => expect(body).toHaveTextContent("Total42,400.00"))
+    expect(body).toHaveTextContent("Room 1 · Deluxe King11,200.00")
+    expect(body).toHaveTextContent("Room 2 · Suite20,000.00")
+    expect(body).toHaveTextContent("Room 3 · Deluxe King11,200.00")
+    expect(api.getQuote).toHaveBeenCalledWith({
+      room_type: "Suite",
+      check_in_date: "2026-11-18",
+      check_out_date: "2026-11-20",
+      adults: 3,
+      children: 1,
+    })
+    expect(screen.getByText("next body")).toBeInTheDocument()
+  })
+
+  it("puts each room's price and the total in the footer summary", async () => {
+    openGroup()
+
+    await waitFor(() => expect(summary()).toHaveTextContent("2 nights · Total 42,400.00"))
+    expect(summary()).toHaveTextContent("Room 2 · Suite20,000.00")
+  })
+
+  it("keeps the next step locked until every room is priced", async () => {
+    let answer!: (q: Quote) => void
+    api.getQuote.mockImplementation((p: { room_type: string }) =>
+      p.room_type === "Suite" ? new Promise<Quote>((r) => (answer = r)) : Promise.resolve(quote()),
+    )
+    openGroup()
+
+    await waitFor(() => expect(answer).toBeTypeOf("function"))
+    expect(screen.getByText("next is locked")).toBeInTheDocument()
+    expect(summary()).not.toHaveTextContent("Total")
+
+    answer(quote({ amount_after_tax: 20000 }))
+    expect(await screen.findByText("next body")).toBeInTheDocument()
+  })
+
+  it("shows a room's refusal on that room and tries it again", async () => {
+    const user = userEvent.setup()
+    api.getQuote.mockImplementation(async (p: { room_type: string }) => {
+      if (p.room_type === "Suite") throw new Error("Suite is closed to arrival.")
+      return quote()
+    })
+    openGroup()
+
+    expect(await rate().findByText("Suite is closed to arrival.")).toBeInTheDocument()
+    expect(screen.getByText("next is locked")).toBeInTheDocument()
+
+    api.getQuote.mockImplementation(async () => quote({ amount_after_tax: 20000 }))
+    await user.click(rate().getByRole("button", { name: "Try again" }))
+    expect(await screen.findByText("next body")).toBeInTheDocument()
+  })
+})

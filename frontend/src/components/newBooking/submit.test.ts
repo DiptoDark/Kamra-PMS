@@ -12,6 +12,7 @@ vi.mock("../../lib/api", async (importOriginal) => ({
 const draft = (payment: Partial<NewBookingDraft["payment"]> = {}): NewBookingDraft => ({
   stay: { check_in_date: "2026-11-25", check_out_date: "2026-11-27", adults: 2, children: 1 },
   room: { room_type: "Deluxe", room_type_name: "Deluxe King", room: "R-204", free: [], freeFor: "" },
+  moreRooms: { rows: [], free: null, freeFor: "" },
   guest: {
     entry: "find",
     guest: "G-0007",

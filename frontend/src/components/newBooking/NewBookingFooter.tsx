@@ -49,7 +49,7 @@ export function NewBookingFooter(
     try {
       const result = await path.run(draft, { keys, overrides, ensureUnlocked })
       props.onBooked?.(result)
-      if (result.payment_error) setDone(result)
+      if (result.payment_error || result.skipped?.length) setDone(result)
       else props.onClose()
     } catch (e) {
       setRefusal(refusalOf(e))
@@ -62,11 +62,16 @@ export function NewBookingFooter(
     return (
       <div className="flex w-full flex-col gap-3">
         <div role="alert" className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          <p className="font-semibold">
-            {t("Booked {reservation}, but the payment wasn't recorded.", { reservation: done.reservation })}
-          </p>
-          <p>{done.payment_error}</p>
-          <p>{t("Take the payment from the booking.")}</p>
+          {!!done.skipped?.length && <SkippedRooms done={done} />}
+          {done.payment_error && (
+            <>
+              <p className="font-semibold">
+                {t("Booked {reservation}, but the payment wasn't recorded.", { reservation: done.reservation })}
+              </p>
+              <p>{done.payment_error}</p>
+              <p>{t("Take the payment from the booking.")}</p>
+            </>
+          )}
         </div>
         <div className="flex justify-end">
           <Button className={BIG} onClick={props.onClose}>
@@ -105,6 +110,29 @@ export function NewBookingFooter(
           </Button>
         ))}
       </div>
+    </div>
+  )
+}
+
+/** A Group booking Kamra made only in part: which rooms it skipped, and
+ *  why (create_group_booking can't be overridden, #14). */
+function SkippedRooms({ done }: { done: BookingDone }) {
+  const { t } = useT()
+  const skipped = done.skipped ?? []
+  return (
+    <div className="mb-1">
+      <p className="font-semibold">
+        {t("Booked {booked} of {total} rooms in {group}.", {
+          booked: done.reservations.length,
+          total: done.reservations.length + skipped.length,
+          group: done.group_booking ?? done.reservation,
+        })}
+      </p>
+      <ul className="list-disc ps-5">
+        {skipped.map((s, i) => (
+          <li key={i}>{t("{room_type}: {reason}", { room_type: s.room_type, reason: s.reason })}</li>
+        ))}
+      </ul>
     </div>
   )
 }

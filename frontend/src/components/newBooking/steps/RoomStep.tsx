@@ -8,6 +8,7 @@ import { useT } from "../../../lib/i18n"
 import { cn } from "../../../lib/utils"
 import { Field, inputCls } from "../fields"
 import type { BookingStep, StayDraft, StepProps } from "../types"
+import { emptyMoreRooms, isGroup, MoreRooms, moreRoomsComplete, refreshMoreRooms } from "./MoreRooms"
 
 /** The room type & room slice of the draft. */
 export interface RoomDraft {
@@ -95,7 +96,9 @@ function RoomBody({ draft, update }: StepProps) {
       setFree(map)
       // the chosen type's rooms now answer for this stay; a picked room
       // that was taken in the meantime goes back to "assign automatically"
-      update((d) => {
+      update((d0) => {
+        // the extra rooms (MoreRooms) learn the same answer
+        const d = refreshMoreRooms(d0, map, key)
         // a prefilled type this property doesn't have is dropped, not kept
         const type = types.find((rt) => rt.name === d.room.room_type)
         if (!type) return d.room.room_type ? { ...d, room: emptyRoom() } : d
@@ -181,6 +184,7 @@ function RoomBody({ draft, update }: StepProps) {
           </select>
         </Field>
       )}
+      {roomChosen(draft) && <MoreRooms draft={draft} update={update} types={types} />}
     </div>
   )
 }
@@ -198,9 +202,11 @@ export function roomChosen(draft: { stay: StayDraft; room: RoomDraft }) {
 }
 
 function RoomSummary({ draft }: StepProps) {
-  const { t } = useT()
+  const { t, tn } = useT()
   const room = draft.room
   if (!roomChosen(draft)) return null
+  if (isGroup(draft))
+    return <span>{tn(draft.moreRooms.rows.length + 1, "Group booking · {n} room", "Group booking · {n} rooms")}</span>
   const picked = room.free!.find((r) => r.name === room.room)
   return (
     <span>
@@ -223,8 +229,9 @@ export const roomStep: BookingStep = {
       room_type: initial.room_type ?? "",
       room: initial.room_type ? (initial.room ?? "") : "",
     },
+    moreRooms: emptyMoreRooms(),
   }),
-  isComplete: roomChosen,
+  isComplete: (draft) => roomChosen(draft) && moreRoomsComplete(draft),
   Body: RoomBody,
   Summary: RoomSummary,
 }

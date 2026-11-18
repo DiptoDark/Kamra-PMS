@@ -14,7 +14,9 @@
     same idempotency keys across that retry. */
 
 import { call, getCurrentProperty, newIdempotencyKey, serverError } from "../../lib/api"
+import { isGroup } from "./steps/MoreRooms"
 import { amountNow, sourceFor } from "./steps/SourcePaymentStep"
+import { bookGroup } from "./submitGroup"
 import type { NewBookingDraft } from "./types"
 
 /** Reasons Kamra accepts to book past a refusal (decision D6, #10). */
@@ -57,6 +59,8 @@ export interface BookingDone {
   credit_warning?: CreditWarning
   /** the booking was made but the payment failed: the message to show */
   payment_error?: string
+  /** a Group booking's rooms Kamra didn't book, and why (#8) */
+  skipped?: { room_type: string; reason: string }[]
 }
 
 export interface SubmitPath {
@@ -96,7 +100,8 @@ const withOverrides = (o: Overrides) =>
 export const bookOneRoom: SubmitPath = {
   key: "book",
   label: "Book",
-  applies: () => true,
+  // two or more rooms book as a Group booking (submitGroup.ts)
+  applies: (draft) => !isGroup(draft),
   run: async (draft, ctx) => {
     const amount = amountNow(draft)
     // the payment isn't all-or-nothing with the booking: unlock first
@@ -133,7 +138,7 @@ export const bookOneRoom: SubmitPath = {
 }
 
 /** The drawer's buttons, in order. */
-export const SUBMIT_PATHS: SubmitPath[] = [bookOneRoom]
+export const SUBMIT_PATHS: SubmitPath[] = [bookOneRoom, bookGroup]
 
 /** Why Kamra refused, read from the error `call` threw. `kind` sorts the
  *  refusals the desk can act on (D6 reasons, D7 till / PIN). */

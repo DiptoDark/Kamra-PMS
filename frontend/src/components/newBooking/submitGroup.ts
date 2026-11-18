@@ -1,0 +1,88 @@
+/*  Book a Group booking: two or more rooms (MoreRooms) in one
+    kamra.api.create_group_booking call (decision D4).
+
+    The group is named "<guest name> · <check-in date>" (D2). Kamra's
+    create_group_booking takes less than create_booking (#14): no source,
+    guest id, override reasons or idempotency key, so those aren't sent, a
+    refusal on one room comes back in `skipped` instead of failing the
+    call, and there is no override on groups. Every line sends its adults,
+    because Kamra's default is 2.
+
+    Money taken now goes on the first room booked, through record_advance
+    as for one room; it isn't taken when any room was skipped, since the
+    amount was the total for every room. */
+
+import { call, getCurrentProperty, serverError } from "../../lib/api"
+import { t } from "../../lib/i18n"
+import { extraRows, isGroup } from "./steps/MoreRooms"
+import { amountNow, payingCompany } from "./steps/SourcePaymentStep"
+import type { BookingDone, SubmitPath } from "./submit"
+import type { NewBookingDraft } from "./types"
+
+/** D2: create_group_booking needs a name and Bedlu asks for none. */
+export const groupName = (draft: NewBookingDraft) =>
+  `${draft.guest.guest_name.trim()} · ${draft.stay.check_in_date}`
+
+/** One create_group_booking line per room, the first room first. */
+export function groupRooms(draft: NewBookingDraft) {
+  const line = (r: { room_type: string; room: string }, adults: number, children: number) => ({
+    room_type: r.room_type,
+    count: 1,
+    ...(r.room ? { room: r.room } : {}),
+    adults,
+    children,
+  })
+  return [
+    line(draft.room, draft.stay.adults, draft.stay.children),
+    ...extraRows(draft).map((r) => line(r, r.adults, r.children)),
+  ]
+}
+
+export const bookGroup: SubmitPath = {
+  key: "group",
+  label: "Book",
+  applies: isGroup,
+  run: async (draft, ctx) => {
+    const amount = amountNow(draft)
+    if (amount > 0) await ctx.ensureUnlocked()
+    const company = payingCompany(draft)
+    const g = draft.guest
+    const r = await call<{
+      group_booking: string
+      created: string[]
+      skipped: { room_type: string; reason: string }[]
+    }>("kamra.api.create_group_booking", {
+      property: getCurrentProperty(),
+      group_name: groupName(draft),
+      check_in_date: draft.stay.check_in_date,
+      check_out_date: draft.stay.check_out_date,
+      rooms: groupRooms(draft),
+      guest_name: g.guest_name.trim(),
+      ...(g.phone ? { phone: g.phone } : {}),
+      ...(company ? { company } : {}),
+    })
+    const skipped = r.skipped ?? []
+    const done: BookingDone = {
+      reservation: r.created[0],
+      room: null,
+      reservations: r.created,
+      group_booking: r.group_booking,
+      paid: 0,
+      skipped,
+    }
+    if (amount <= 0) return done
+    if (skipped.length > 0)
+      return { ...done, payment_error: t("Not every room was booked, so no payment was taken.") }
+    try {
+      await call("kamra.api.record_advance", {
+        reservation: r.created[0],
+        amount,
+        mode: draft.payment.mode,
+        idempotency_key: ctx.keys.payment,
+      })
+      return { ...done, paid: amount }
+    } catch (e) {
+      return { ...done, payment_error: serverError(e) }
+    }
+  },
+}
