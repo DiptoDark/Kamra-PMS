@@ -27,12 +27,15 @@ declare module "../types" {
 /** What get_quote is asked with. Later steps that change the price (a
  *  company paying, per-room rows) extend this; the key follows. */
 export function quoteParams(draft: NewBookingDraft): QuoteParams {
+  // a paying company prices on its negotiated plan (source & payment step)
+  const company = draft.payment?.payer === "company" ? draft.payment.company : ""
   return {
     room_type: draft.room.room_type,
     check_in_date: draft.stay.check_in_date,
     check_out_date: draft.stay.check_out_date,
     adults: draft.stay.adults,
     children: draft.stay.children,
+    ...(company ? { company } : {}),
   }
 }
 

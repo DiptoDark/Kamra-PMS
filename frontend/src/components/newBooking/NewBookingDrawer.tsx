@@ -13,6 +13,7 @@ import { cn } from "../../lib/utils"
 import { Sheet } from "../ui/sheet"
 import { NewBookingFooter } from "./NewBookingFooter"
 import { BOOKING_STEPS } from "./steps"
+import type { BookingDone } from "./submit"
 import type { BookingStep, DraftUpdate, NewBookingDraft } from "./types"
 
 export function initialDraft(steps: BookingStep[], initial: BookingInitial): NewBookingDraft {
@@ -36,6 +37,8 @@ export function stepStates(steps: BookingStep[], draft: NewBookingDraft) {
 export function NewBookingDrawer(props: {
   initial: BookingInitial
   onClose: () => void
+  /** A booking was made: refresh whatever the caller shows. */
+  onBooked?: (done: BookingDone) => void
   /** Defaults to the full flow; tests and later variants may pass their own. */
   steps?: BookingStep[]
 }) {
@@ -57,6 +60,7 @@ export function NewBookingDrawer(props: {
           steps={steps}
           ready={states.every((s) => s.complete)}
           onClose={props.onClose}
+          onBooked={props.onBooked}
         />
       }
     >
