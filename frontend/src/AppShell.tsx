@@ -52,10 +52,12 @@ import NotificationHost from "./components/NotificationHost"
 import NotificationBell from "./components/NotificationBell"
 
 
-// On-demand UI kept out of the entry chunk: the booking dialog opens on
+// On-demand UI kept out of the entry chunk: the booking drawer opens on
 // request; the palette and help panel load right after the shell paints.
-const BookingDialog = lazy(() =>
-  import("./components/BookingDialog").then((m) => ({ default: m.BookingDialog })),
+const NewBookingDrawer = lazy(() =>
+  import("./components/newBooking/NewBookingDrawer").then((m) => ({
+    default: m.NewBookingDrawer,
+  })),
 )
 const CommandPalette = lazy(() =>
   import("./components/CommandPalette").then((m) => ({ default: m.CommandPalette })),
@@ -71,6 +73,7 @@ export interface BookingInitial {
   guest?: string
   guest_name?: string
   phone?: string
+  /** nights to book (not the guest's past stay count) */
   stays?: number
   adults?: number
   children?: number
@@ -802,7 +805,7 @@ export default function AppShell() {
 
       {booking && canBook && (
         <Suspense fallback={null}>
-          <BookingDialog
+          <NewBookingDrawer
             initial={booking}
             onClose={() => setBooking(null)}
             onBooked={() => setRefreshKey((k) => k + 1)}
